@@ -1,72 +1,72 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Eye, Truck } from "lucide-react"
-import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Eye, Truck } from "lucide-react";
+import Link from "next/link";
 
 const trucks = [
   {
     id: "TRK-001",
     driver: "John Smith",
     capacity: "20m³",
-    status: "En Route",
+    status: "En Ruta",
     location: "Sector A-5",
   },
   {
     id: "TRK-002",
     driver: "Maria Garcia",
     capacity: "15m³",
-    status: "Loading",
-    location: "Main Plant",
+    status: "Cargando",
+    location: "Planta Principal",
   },
   {
     id: "TRK-003",
     driver: "Robert Chen",
     capacity: "25m³",
-    status: "Delivering",
+    status: "Entregando",
     location: "Sector C-2",
   },
   {
     id: "TRK-004",
     driver: "Sarah Johnson",
     capacity: "10m³",
-    status: "Returning",
+    status: "Regresando",
     location: "Sector B-7",
   },
   {
     id: "TRK-005",
     driver: "David Kim",
     capacity: "18m³",
-    status: "Maintenance",
-    location: "Depot",
+    status: "Mantenimiento",
+    location: "Depósito",
   },
-]
+];
 
 export function ActiveTrucks() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Active Fleet</CardTitle>
-          <CardDescription>Current truck status</CardDescription>
+          <CardTitle>Flota Activa</CardTitle>
+          <CardDescription>Estado actual de los camiones</CardDescription>
         </div>
         <Button asChild size="sm" variant="outline">
           <Link href="/fleet">
             <Truck className="mr-2 h-4 w-4" />
-            Manage Fleet
+            Gestionar Flota
           </Link>
         </Button>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="grid grid-cols-5 text-xs font-medium text-muted-foreground">
-            <div>Truck ID</div>
-            <div>Driver</div>
-            <div>Capacity</div>
-            <div>Status</div>
-            <div>Location</div>
+            <div>ID del Camión</div>
+            <div>Conductor</div>
+            <div>Capacidad</div>
+            <div>Estado</div>
+            <div>Ubicación</div>
           </div>
           <div className="space-y-2">
             {trucks.map((truck) => (
@@ -77,15 +77,15 @@ export function ActiveTrucks() {
                 <div>
                   <Badge
                     variant={
-                      truck.status === "En Route"
+                      truck.status === "En Ruta"
                         ? "default"
-                        : truck.status === "Loading"
-                          ? "secondary"
-                          : truck.status === "Delivering"
-                            ? "outline"
-                            : truck.status === "Returning"
-                              ? "secondary"
-                              : "destructive"
+                        : truck.status === "Cargando"
+                        ? "secondary"
+                        : truck.status === "Entregando"
+                        ? "outline"
+                        : truck.status === "Regresando"
+                        ? "secondary"
+                        : "destructive"
                     }
                   >
                     {truck.status}
@@ -101,11 +101,10 @@ export function ActiveTrucks() {
             ))}
           </div>
           <Button variant="outline" className="w-full" asChild>
-            <Link href="/fleet">View All Trucks</Link>
+            <Link href="/fleet">Ver Todos los Camiones</Link>
           </Button>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
-

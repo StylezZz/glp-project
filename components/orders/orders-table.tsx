@@ -136,7 +136,7 @@ const data: Order[] = [
 export const columns: ColumnDef<Order>[] = [
   {
     accessorKey: "id",
-    header: "Order ID",
+    header: "ID del Pedido",
     cell: ({ row }) => <div className="font-medium">{row.getValue("id")}</div>,
   },
   {
@@ -144,7 +144,7 @@ export const columns: ColumnDef<Order>[] = [
     header: ({ column }) => {
       return (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Customer
+          Cliente
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
@@ -152,18 +152,18 @@ export const columns: ColumnDef<Order>[] = [
   },
   {
     accessorKey: "location",
-    header: "Location",
+    header: "Ubicación",
   },
   {
     accessorKey: "volume",
-    header: "Volume",
+    header: "Volumen",
   },
   {
     accessorKey: "deadline",
     header: ({ column }) => {
       return (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Deadline
+          Fecha Límite
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
@@ -171,7 +171,7 @@ export const columns: ColumnDef<Order>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: "Estado",
     cell: ({ row }) => {
       const status = row.getValue("status") as string
       return (
@@ -188,14 +188,22 @@ export const columns: ColumnDef<Order>[] = [
                     : "destructive"
           }
         >
-          {status}
+          {status === "In Progress"
+            ? "En Progreso"
+            : status === "Pending"
+              ? "Pendiente"
+              : status === "Assigned"
+                ? "Asignado"
+                : status === "Completed"
+                  ? "Completado"
+                  : "Cancelado"}
         </Badge>
       )
     },
   },
   {
     accessorKey: "createdAt",
-    header: "Created",
+    header: "Creado",
   },
   {
     id: "actions",
@@ -211,12 +219,12 @@ export const columns: ColumnDef<Order>[] = [
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem>View details</DropdownMenuItem>
-            <DropdownMenuItem>Assign truck</DropdownMenuItem>
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem>Ver detalles</DropdownMenuItem>
+            <DropdownMenuItem>Asignar camión</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Edit order</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Cancel order</DropdownMenuItem>
+            <DropdownMenuItem>Editar pedido</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Cancelar pedido</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -250,35 +258,11 @@ export function OrdersTable() {
     <Card>
       <div className="flex items-center justify-between p-4">
         <Input
-          placeholder="Filter orders..."
+          placeholder="Buscar cliente..."
           value={(table.getColumn("customer")?.getFilterValue() as string) ?? ""}
           onChange={(event) => table.getColumn("customer")?.setFilterValue(event.target.value)}
           className="max-w-sm"
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columns <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -307,7 +291,7 @@ export function OrdersTable() {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No results.
+                  Sin resultados.
                 </TableCell>
               </TableRow>
             )}
@@ -316,7 +300,7 @@ export function OrdersTable() {
       </div>
       <div className="flex items-center justify-end space-x-2 p-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          Showing {table.getFilteredRowModel().rows.length} of {data.length} orders
+          Mostrando {table.getFilteredRowModel().rows.length} de {data.length} pedidos
         </div>
         <div className="space-x-2">
           <Button
@@ -325,10 +309,10 @@ export function OrdersTable() {
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
-            Previous
+            Anterior
           </Button>
           <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-            Next
+            Siguiente
           </Button>
         </div>
       </div>

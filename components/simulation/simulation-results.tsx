@@ -1,203 +1,281 @@
 "use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts"
+import { useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Search } from "lucide-react"
 
-const dailyData = [
-  { day: 1, deliveries: 24, fuel: 187, utilization: 53 },
-  { day: 2, deliveries: 26, fuel: 195, utilization: 58 },
-  { day: 3, deliveries: 22, fuel: 178, utilization: 49 },
-  { day: 4, deliveries: 28, fuel: 210, utilization: 62 },
-  { day: 5, deliveries: 25, fuel: 192, utilization: 56 },
-  { day: 6, deliveries: 18, fuel: 156, utilization: 40 },
-  { day: 7, deliveries: 20, fuel: 168, utilization: 44 },
+// Datos simulados por día para pedidos
+const orderData = [
+  { day: 1, completados: 24, enTiempo: 20, retrasados: 4, cancelados: 1 },
+  { day: 2, completados: 26, enTiempo: 22, retrasados: 3, cancelados: 2 },
+  { day: 3, completados: 22, enTiempo: 20, retrasados: 2, cancelados: 0 },
+  { day: 4, completados: 28, enTiempo: 25, retrasados: 3, cancelados: 1 },
+  { day: 5, completados: 25, enTiempo: 23, retrasados: 2, cancelados: 0 },
+  { day: 6, completados: 18, enTiempo: 15, retrasados: 3, cancelados: 1 },
+  { day: 7, completados: 20, enTiempo: 18, retrasados: 2, cancelados: 0 },
 ]
 
-const tankData = [
-  { day: 1, tank1: 78, tank2: 65 },
-  { day: 2, tank1: 62, tank2: 48 },
-  { day: 3, tank1: 100, tank2: 100 },
-  { day: 4, tank1: 85, tank2: 72 },
-  { day: 5, tank1: 68, tank2: 54 },
-  { day: 6, tank1: 52, tank2: 38 },
-  { day: 7, tank1: 100, tank2: 100 },
+// Datos más detallados de vehículos para la tabla expandida
+const detailedVehicleData = [
+  { 
+    id: "V001", 
+    entregas: 42, 
+    combustible: 328, 
+    utilizacion: 68, 
+    mantenimiento: 0,
+    conductorAsignado: "Juan Pérez",
+    capacidadTanque: 500,
+    ultimoMantenimiento: "2023-10-15",
+    kmRecorridos: 845,
+    estado: "Operativo",
+    tipoVehiculo: "Camión Cisterna",
+    pedidosAsignados: [
+      { codigo: "P001", cliente: "Distribuidora Norte", estado: "Entregado", tiempo: "40 min" },
+      { codigo: "P012", cliente: "Gas Industrial SA", estado: "Entregado", tiempo: "35 min" },
+      { codigo: "P023", cliente: "Residencial Torres", estado: "Entregado", tiempo: "45 min" },
+    ]
+  },
+  { 
+    id: "V002", 
+    entregas: 38, 
+    combustible: 302, 
+    utilizacion: 62, 
+    mantenimiento: 1,
+    conductorAsignado: "Miguel Rojas",
+    capacidadTanque: 450,
+    ultimoMantenimiento: "2023-11-02",
+    kmRecorridos: 782,
+    estado: "En Mantenimiento",
+    tipoVehiculo: "Camión Cisterna",
+    pedidosAsignados: [
+      { codigo: "P005", cliente: "Comercial Este", estado: "Entregado", tiempo: "42 min" },
+      { codigo: "P019", cliente: "Restaurantes Unidos", estado: "Retrasado", tiempo: "65 min" },
+      { codigo: "P027", cliente: "Hospital Central", estado: "Entregado", tiempo: "38 min" },
+    ]
+  },
+  { 
+    id: "V003", 
+    entregas: 45, 
+    combustible: 345, 
+    utilizacion: 73, 
+    mantenimiento: 0,
+    conductorAsignado: "Ana Mendoza",
+    capacidadTanque: 500,
+    ultimoMantenimiento: "2023-10-28",
+    kmRecorridos: 912,
+    estado: "Operativo",
+    tipoVehiculo: "Camión Cisterna Grande",
+    pedidosAsignados: [
+      { codigo: "P008", cliente: "Fábrica Industrial", estado: "Entregado", tiempo: "37 min" },
+      { codigo: "P014", cliente: "Condominio Las Palmas", estado: "Entregado", tiempo: "41 min" },
+      { codigo: "P031", cliente: "Centro Comercial Plaza", estado: "Entregado", tiempo: "39 min" },
+    ]
+  },
+  { 
+    id: "V004", 
+    entregas: 32, 
+    combustible: 284, 
+    utilizacion: 58, 
+    mantenimiento: 2,
+    conductorAsignado: "Carlos Benítez",
+    capacidadTanque: 400,
+    ultimoMantenimiento: "2023-11-05",
+    kmRecorridos: 621,
+    estado: "En Mantenimiento",
+    tipoVehiculo: "Camión Cisterna Mediano",
+    pedidosAsignados: [
+      { codigo: "P003", cliente: "Residencial Sur", estado: "Retrasado", tiempo: "58 min" },
+      { codigo: "P022", cliente: "Hotel Los Pinos", estado: "Entregado", tiempo: "43 min" },
+      { codigo: "P029", cliente: "Estación de Servicio", estado: "Cancelado", tiempo: "N/A" },
+    ]
+  },
 ]
-
-const breakdownData = [
-  { name: "On-time Deliveries", value: 92 },
-  { name: "Late Deliveries", value: 6 },
-  { name: "Failed Deliveries", value: 2 },
-]
-
-const COLORS = ["#16a34a", "#f59e0b", "#ef4444"]
 
 export function SimulationResults() {
+  const [searchOrderTerm, setSearchOrderTerm] = useState("");
+  const [searchVehicleTerm, setSearchVehicleTerm] = useState("");
+
+  // Filtrar pedidos basados en el término de búsqueda
+  const filteredOrders = orderData.filter(order =>
+    Object.values(order).some(value =>
+      String(value).toLowerCase().includes(searchOrderTerm.toLowerCase())
+    )
+  );
+
+  // Filtrar vehículos basados en el término de búsqueda
+  const filteredVehicles = detailedVehicleData.filter(vehicle =>
+    Object.values(vehicle).some(value =>
+      String(value).toLowerCase().includes(searchVehicleTerm.toLowerCase())
+    )
+  );
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Simulation Results</CardTitle>
-        <CardDescription>Analysis of the simulation outcomes</CardDescription>
+        <CardTitle>Resultados de la Simulación</CardTitle>
+        <CardDescription>Análisis de los resultados de la simulación logística</CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="performance">
+        <Tabs defaultValue="leyenda">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="resources">Resources</TabsTrigger>
-            <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
+            <TabsTrigger value="leyenda">Leyenda</TabsTrigger>
+            <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+            <TabsTrigger value="vehiculos">Vehículos</TabsTrigger>
           </TabsList>
-          <TabsContent value="performance" className="space-y-4 pt-4">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" label={{ value: "Day", position: "insideBottom", offset: -5 }} />
-                  <YAxis yAxisId="left" label={{ value: "Deliveries", angle: -90, position: "insideLeft" }} />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    label={{ value: "Fuel (L)", angle: 90, position: "insideRight" }}
-                  />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="deliveries"
-                    name="Deliveries"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="fuel"
-                    name="Fuel Consumption (L)"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Card className="p-4">
-                <div className="text-sm font-medium">Avg. Daily Deliveries</div>
-                <div className="mt-2 text-2xl font-bold">23.3</div>
-                <div className="text-xs text-muted-foreground">+5% from baseline</div>
-              </Card>
-              <Card className="p-4">
-                <div className="text-sm font-medium">Avg. Fuel Consumption</div>
-                <div className="mt-2 text-2xl font-bold">183.7 L</div>
-                <div className="text-xs text-muted-foreground">-3% from baseline</div>
-              </Card>
-              <Card className="p-4">
-                <div className="text-sm font-medium">Avg. Truck Utilization</div>
-                <div className="mt-2 text-2xl font-bold">51.7%</div>
-                <div className="text-xs text-muted-foreground">+2% from baseline</div>
-              </Card>
-            </div>
-          </TabsContent>
-          <TabsContent value="resources" className="space-y-4 pt-4">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={tankData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" label={{ value: "Day", position: "insideBottom", offset: -5 }} />
-                  <YAxis label={{ value: "Tank Level (%)", angle: -90, position: "insideLeft" }} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="tank1" name="Tank 1" stroke="#10b981" strokeWidth={2} />
-                  <Line type="monotone" dataKey="tank2" name="Tank 2" stroke="#3b82f6" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Card className="p-4">
-                <div className="text-sm font-medium">Min Tank Level</div>
-                <div className="mt-2 text-2xl font-bold">38%</div>
-                <div className="text-xs text-muted-foreground">Tank 2, Day 6</div>
-              </Card>
-              <Card className="p-4">
-                <div className="text-sm font-medium">Refill Events</div>
-                <div className="mt-2 text-2xl font-bold">2</div>
-                <div className="text-xs text-muted-foreground">Days 3 and 7</div>
-              </Card>
-              <Card className="p-4">
-                <div className="text-sm font-medium">Critical Levels</div>
-                <div className="mt-2 text-2xl font-bold">0</div>
-                <div className="text-xs text-muted-foreground">Below 30% capacity</div>
-              </Card>
-            </div>
-          </TabsContent>
-          <TabsContent value="deliveries" className="space-y-4 pt-4">
+
+          {/* Tab de Leyenda */}
+          <TabsContent value="leyenda" className="space-y-4 pt-4">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" label={{ value: "Day", position: "insideBottom", offset: -5 }} />
-                    <YAxis label={{ value: "Deliveries", angle: -90, position: "insideLeft" }} />
-                    <Tooltip />
-                    <Bar dataKey="deliveries" name="Deliveries" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={breakdownData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {breakdownData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <Card className="p-6">
+                <div className="text-lg font-bold mb-4">Estado de Pedidos</div>
+                <div className="space-y-3">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-[#16a34a] mr-2"></div>
+                    <div>En Tiempo: Pedidos entregados dentro del plazo estimado</div>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-[#f59e0b] mr-2"></div>
+                    <div>Retrasados: Pedidos entregados después del plazo estimado</div>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-[#ef4444] mr-2"></div>
+                    <div>Cancelados: Pedidos que no pudieron ser completados</div>
+                  </div>
+                </div>
+              </Card>
+              
+              <Card className="p-6">
+                <div className="text-lg font-bold mb-4">Métricas de Vehículos</div>
+                <div className="space-y-3">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-[#3b82f6] mr-2"></div>
+                    <div>Entregas: Número total de pedidos completados</div>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-[#8b5cf6] mr-2"></div>
+                    <div>Combustible: Litros de combustible utilizados</div>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-[#ec4899] mr-2"></div>
+                    <div>Utilización: Porcentaje de tiempo en actividad</div>
+                  </div>
+                </div>
+              </Card>
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Card className="p-4">
-                <div className="text-sm font-medium">Total Deliveries</div>
-                <div className="mt-2 text-2xl font-bold">163</div>
-                <div className="text-xs text-muted-foreground">Over 7 days</div>
-              </Card>
-              <Card className="p-4">
-                <div className="text-sm font-medium">On-time Delivery Rate</div>
-                <div className="mt-2 text-2xl font-bold">92%</div>
-                <div className="text-xs text-muted-foreground">+2% from target</div>
-              </Card>
-              <Card className="p-4">
-                <div className="text-sm font-medium">Avg. Delivery Time</div>
-                <div className="mt-2 text-2xl font-bold">42 min</div>
-                <div className="text-xs text-muted-foreground">-5 min from baseline</div>
-              </Card>
+            
+            <Card className="p-6">
+              <div className="text-lg font-bold mb-4">Resumen General de la Simulación</div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-lg bg-muted p-4">
+                  <div className="text-sm font-medium">Total Pedidos</div>
+                  <div className="mt-2 text-2xl font-bold">167</div>
+                  <div className="text-xs text-muted-foreground">En 7 días de operación</div>
+                </div>
+                <div className="rounded-lg bg-muted p-4">
+                  <div className="text-sm font-medium">Tasa de Entrega</div>
+                  <div className="mt-2 text-2xl font-bold">97%</div>
+                  <div className="text-xs text-muted-foreground">Pedidos completados vs. solicitados</div>
+                </div>
+                <div className="rounded-lg bg-muted p-4">
+                  <div className="text-sm font-medium">Eficiencia Global</div>
+                  <div className="mt-2 text-2xl font-bold">65.3%</div>
+                  <div className="text-xs text-muted-foreground">Utilización de recursos</div>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* Tab de Pedidos */}
+          <TabsContent value="pedidos" className="space-y-4 pt-4">
+            <div className="flex items-center border rounded-md px-3 mb-4 bg-white">
+              <Search className="h-4 w-4 text-gray-400" />
+              <Input
+                className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                placeholder="Buscar pedidos..."
+                value={searchOrderTerm}
+                onChange={(e) => setSearchOrderTerm(e.target.value)}
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-2 text-left">Día</th>
+                    <th className="px-4 py-2 text-left">Completados</th>
+                    <th className="px-4 py-2 text-left">En Tiempo</th>
+                    <th className="px-4 py-2 text-left">Retrasados</th>
+                    <th className="px-4 py-2 text-left">Cancelados</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.map((order, index) => (
+                    <tr key={index} className="border-b hover:bg-muted/50">
+                      <td className="px-4 py-2">{order.day}</td>
+                      <td className="px-4 py-2">{order.completados}</td>
+                      <td className="px-4 py-2">{order.enTiempo}</td>
+                      <td className="px-4 py-2">{order.retrasados}</td>
+                      <td className="px-4 py-2">{order.cancelados}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredOrders.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  No se encontraron pedidos con los criterios de búsqueda.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Tab de Vehículos */}
+          <TabsContent value="vehiculos" className="space-y-4 pt-4">
+            <div className="flex items-center border rounded-md px-3 mb-4 bg-white">
+              <Search className="h-4 w-4 text-gray-400" />
+              <Input
+                className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                placeholder="Buscar vehículos..."
+                value={searchVehicleTerm}
+                onChange={(e) => setSearchVehicleTerm(e.target.value)}
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-2 text-left">ID Vehículo</th>
+                    <th className="px-4 py-2 text-left">Conductor</th>
+                    <th className="px-4 py-2 text-left">Tipo</th>
+                    <th className="px-4 py-2 text-left">Entregas</th>
+                    <th className="px-4 py-2 text-left">Combustible</th>
+                    <th className="px-4 py-2 text-left">Utilización</th>
+                    <th className="px-4 py-2 text-left">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredVehicles.map((vehicle) => (
+                    <tr key={vehicle.id} className="border-b hover:bg-muted/50">
+                      <td className="px-4 py-2">{vehicle.id}</td>
+                      <td className="px-4 py-2">{vehicle.conductorAsignado}</td>
+                      <td className="px-4 py-2">{vehicle.tipoVehiculo}</td>
+                      <td className="px-4 py-2">{vehicle.entregas}</td>
+                      <td className="px-4 py-2">{vehicle.combustible} L</td>
+                      <td className="px-4 py-2">{vehicle.utilizacion}%</td>
+                      <td className="px-4 py-2">{vehicle.estado}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredVehicles.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  No se encontraron vehículos con los criterios de búsqueda.
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
-  )
+  );
 }
 

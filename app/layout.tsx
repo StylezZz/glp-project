@@ -2,8 +2,9 @@ import type React from "react"
 import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarProvider } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
+import "@/app/globals.css"
 
 export const metadata = {
   title: "GLP Distribution Logistics",
@@ -23,7 +24,9 @@ export default function RootLayout({
           <SidebarProvider>
             <div className="flex h-screen">
               <AppSidebar />
-              <main className="flex-1 overflow-auto">{children}</main>
+              <main className="flex-1 overflow-auto">
+                <SidebarTrigger/>
+                {children}</main>
             </div>
             <Toaster />
           </SidebarProvider>
@@ -35,4 +38,3 @@ export default function RootLayout({
 
 
 
-import './globals.css'

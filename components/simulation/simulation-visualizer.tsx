@@ -1,467 +1,633 @@
-"use client"
+'use client'
+import React, { useRef, useEffect, useState } from 'react'
 
-import * as React from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import { ZoomIn, ZoomOut, Layers, FastForward, Rewind, Play, Pause } from "lucide-react"
+const GRID_SIZE = 20
+const GRID_WIDTH = 80
+const GRID_HEIGHT = 100 
 
-export function SimulationVisualizer() {
-  const canvasRef = React.useRef<HTMLCanvasElement>(null)
-  const [zoom, setZoom] = React.useState(1)
-  const [isPlaying, setIsPlaying] = React.useState(false)
-  const [timeScale, setTimeScale] = React.useState(1)
-
-  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const gridSize = 40
-    ctx.strokeStyle = "#e2e8f0"
-    ctx.lineWidth = 0.5
-
-    // Draw vertical lines
-    for (let x = 0; x <= width; x += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, height)
-      ctx.stroke()
-    }
-
-    // Draw horizontal lines
-    for (let y = 0; y <= height; y += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
-      ctx.stroke()
-    }
-
-    // Draw coordinate labels
-    ctx.fillStyle = "#94a3b8"
-    ctx.font = "10px sans-serif"
-
-    // X-axis labels (A, B, C, etc.)
-    for (let x = gridSize; x < width; x += gridSize) {
-      const label = String.fromCharCode(64 + Math.floor(x / gridSize))
-      ctx.fillText(label, x - 3, 12)
-    }
-
-    // Y-axis labels (1, 2, 3, etc.)
-    for (let y = gridSize; y < height; y += gridSize) {
-      const label = Math.floor(y / gridSize).toString()
-      ctx.fillText(label, 5, y + 4)
-    }
-  }
-
-  const drawMapElements = (ctx: CanvasRenderingContext2D) => {
-    const gridSize = 40
-
-    // Draw main plant
-    ctx.fillStyle = "#3b82f6"
-    ctx.beginPath()
-    ctx.arc(gridSize * 5, gridSize * 5, 10, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = "#1e293b"
-    ctx.font = "12px sans-serif"
-    ctx.fillText("Main Plant", gridSize * 5 - 30, gridSize * 5 - 15)
-
-    // Draw tanks
-    ctx.fillStyle = "#10b981"
-    ctx.beginPath()
-    ctx.arc(gridSize * 8, gridSize * 3, 8, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillText("Tank 1", gridSize * 8 - 20, gridSize * 3 - 12)
-
-    ctx.beginPath()
-    ctx.arc(gridSize * 3, gridSize * 8, 8, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillText("Tank 2", gridSize * 3 - 20, gridSize * 8 - 12)
-
-    // Draw customers
-    const customers = [
-      { x: 2, y: 3, name: "Acme Corp" },
-      { x: 7, y: 7, name: "TechSolutions" },
-      { x: 10, y: 4, name: "Global Ind." },
-      { x: 4, y: 10, name: "City Hospital" },
-      { x: 9, y: 9, name: "Metro Hotel" },
-    ]
-
-    ctx.fillStyle = "#f59e0b"
-    customers.forEach((customer) => {
-      ctx.beginPath()
-      ctx.rect(customer.x * gridSize - 6, customer.y * gridSize - 6, 12, 12)
-      ctx.fill()
-      ctx.fillStyle = "#1e293b"
-      ctx.fillText(customer.name, customer.x * gridSize - 30, customer.y * gridSize - 12)
-      ctx.fillStyle = "#f59e0b"
-    })
-
-    // Draw trucks
-    const trucks = [
-      { x: 5.5, y: 5.5, angle: 45 },
-      { x: 6.2, y: 4.3, angle: 90 },
-      { x: 3.8, y: 7.2, angle: 180 },
-      { x: 8.5, y: 8.1, angle: 270 },
-      { x: 9.2, y: 3.5, angle: 315 },
-    ]
-
-    ctx.fillStyle = "#ef4444"
-    trucks.forEach((truck) => {
-      ctx.save()
-      ctx.translate(truck.x * gridSize, truck.y * gridSize)
-      ctx.rotate((truck.angle * Math.PI) / 180)
-
-      // Draw truck as triangle
-      ctx.beginPath()
-      ctx.moveTo(0, -6)
-      ctx.lineTo(-4, 6)
-      ctx.lineTo(4, 6)
-      ctx.closePath()
-      ctx.fill()
-
-      ctx.restore()
-    })
-
-    // Draw routes
-    ctx.strokeStyle = "#3b82f6"
-    ctx.lineWidth = 2
-
-    // Route 1: Main Plant to Customer 1
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 5, gridSize * 5)
-    ctx.lineTo(gridSize * 2, gridSize * 3)
-    ctx.stroke()
-
-    // Route 2: Main Plant to Tank 1 to Customer 3
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 5, gridSize * 5)
-    ctx.lineTo(gridSize * 8, gridSize * 3)
-    ctx.lineTo(gridSize * 10, gridSize * 4)
-    ctx.stroke()
-
-    // Route 3: Tank 2 to Customer 4
-    ctx.strokeStyle = "#10b981"
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 3, gridSize * 8)
-    ctx.lineTo(gridSize * 4, gridSize * 10)
-    ctx.stroke()
-
-    // Route 4: Main Plant to Customer 2 to Customer 5
-    ctx.strokeStyle = "#f59e0b"
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 5, gridSize * 5)
-    ctx.lineTo(gridSize * 7, gridSize * 7)
-    ctx.lineTo(gridSize * 9, gridSize * 9)
-    ctx.stroke()
-
-    // Draw route direction arrows
-    drawArrow(ctx, gridSize * 3.5, gridSize * 4, 135)
-    drawArrow(ctx, gridSize * 6.5, gridSize * 4, 45)
-    drawArrow(ctx, gridSize * 9, gridSize * 3.5, 0)
-    drawArrow(ctx, gridSize * 3.5, gridSize * 9, 45)
-    drawArrow(ctx, gridSize * 6, gridSize * 6, 45)
-    drawArrow(ctx, gridSize * 8, gridSize * 8, 45)
-  }
-
-  const drawArrow = (ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) => {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate((angle * Math.PI) / 180)
-
-    ctx.fillStyle = ctx.strokeStyle
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.lineTo(-5, -3)
-    ctx.lineTo(-5, 3)
-    ctx.closePath()
-    ctx.fill()
-
-    ctx.restore()
-  }
-
-  const draw = React.useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    // Set canvas dimensions
-    canvas.width = canvas.offsetWidth
-    canvas.height = canvas.offsetHeight
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Apply zoom
-    ctx.save()
-    ctx.scale(zoom, zoom)
-
-    // Draw grid
-    drawGrid(ctx, canvas.width / zoom, canvas.height / zoom)
-
-    // Draw map elements
-    drawMapElements(ctx)
-
-    ctx.restore()
-  }, [zoom, drawMapElements])
-
-  React.useEffect(() => {
-    draw()
-    window.addEventListener("resize", draw)
-    return () => window.removeEventListener("resize", draw)
-  }, [draw])
-
-  const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.2, 2))
-  }
-
-  const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.2, 0.6))
-  }
-
-  const togglePlayPause = () => {
-    setIsPlaying(!isPlaying)
-  }
-
-  const handleTimeScaleChange = (value: number[]) => {
-    setTimeScale(value[0])
-  }
-
-  return (
-    <Card className="h-[calc(100vh-12rem)]">
-      <Tabs defaultValue="simulation">
-        <div className="flex items-center justify-between border-b px-4">
-          <TabsList className="h-12">
-            <TabsTrigger value="simulation">Simulation</TabsTrigger>
-            <TabsTrigger value="metrics">Real-time Metrics</TabsTrigger>
-            <TabsTrigger value="events">Events Log</TabsTrigger>
-          </TabsList>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={handleZoomOut}>
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleZoomIn}>
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Layers className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <CardContent className="p-0">
-          <TabsContent value="simulation" className="m-0 h-full">
-            <div className="relative h-full w-full">
-              <canvas ref={canvasRef} className="h-full w-full" />
-              <div className="absolute bottom-4 left-4 flex flex-col gap-2 bg-background/80 p-2 rounded-md border">
-                <div className="text-xs font-medium">Legend</div>
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                  <span>Main Plant</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-3 w-3 rounded-full bg-green-500"></div>
-                  <span>Tanks</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-3 w-3 rounded bg-amber-500"></div>
-                  <span>Customers</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-3 w-3 rounded-full bg-red-500"></div>
-                  <span>Trucks</span>
-                </div>
-              </div>
-
-              <div className="absolute bottom-4 right-4 flex flex-col gap-2 bg-background/80 p-2 rounded-md border w-64">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-medium">Simulation Time: 08:45</div>
-                  <div className="text-xs font-medium">Day 1 of 7</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" className="h-8 w-8">
-                    <Rewind className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={togglePlayPause}>
-                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </Button>
-                  <Button variant="outline" size="icon" className="h-8 w-8">
-                    <FastForward className="h-4 w-4" />
-                  </Button>
-                  <div className="flex-1">
-                    <Slider
-                      defaultValue={[1]}
-                      max={10}
-                      min={1}
-                      step={1}
-                      value={[timeScale]}
-                      onValueChange={handleTimeScaleChange}
-                    />
-                  </div>
-                  <div className="text-xs font-medium">{timeScale}x</div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="metrics" className="m-0 p-4 h-full overflow-auto">
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Tank 1 Level</div>
-                  <div className="mt-2 text-2xl font-bold">78%</div>
-                  <div className="h-2 w-full bg-muted mt-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: "78%" }}></div>
-                  </div>
-                </Card>
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Tank 2 Level</div>
-                  <div className="mt-2 text-2xl font-bold">65%</div>
-                  <div className="h-2 w-full bg-muted mt-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: "65%" }}></div>
-                  </div>
-                </Card>
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Orders Pending</div>
-                  <div className="mt-2 text-2xl font-bold">12</div>
-                  <div className="text-xs text-muted-foreground">50% of daily total</div>
-                </Card>
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Trucks Active</div>
-                  <div className="mt-2 text-2xl font-bold">8/15</div>
-                  <div className="text-xs text-muted-foreground">53% utilization</div>
-                </Card>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Real-time Metrics</h3>
-                <div className="rounded-md border overflow-hidden">
-                  <table className="min-w-full divide-y divide-border">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Metric</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Current Value</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Target</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border bg-background">
-                      <tr>
-                        <td className="px-4 py-2 text-sm">On-time Delivery Rate</td>
-                        <td className="px-4 py-2 text-sm">98.2%</td>
-                        <td className="px-4 py-2 text-sm">95.0%</td>
-                        <td className="px-4 py-2 text-sm">
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
-                            Above Target
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Fuel Efficiency</td>
-                        <td className="px-4 py-2 text-sm">0.42 L/km</td>
-                        <td className="px-4 py-2 text-sm">0.45 L/km</td>
-                        <td className="px-4 py-2 text-sm">
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
-                            Above Target
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Truck Utilization</td>
-                        <td className="px-4 py-2 text-sm">53.3%</td>
-                        <td className="px-4 py-2 text-sm">60.0%</td>
-                        <td className="px-4 py-2 text-sm">
-                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-300">
-                            Below Target
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Tank 1 Level</td>
-                        <td className="px-4 py-2 text-sm">78.0%</td>
-                        <td className="px-4 py-2 text-sm">50.0%</td>
-                        <td className="px-4 py-2 text-sm">
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
-                            Above Target
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Tank 2 Level</td>
-                        <td className="px-4 py-2 text-sm">65.0%</td>
-                        <td className="px-4 py-2 text-sm">50.0%</td>
-                        <td className="px-4 py-2 text-sm">
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
-                            Above Target
-                          </span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="events" className="m-0 p-4 h-full overflow-auto">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Simulation Events</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 rounded-md border p-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300">
-                      08:45
-                    </div>
-                    <div>
-                      <div className="font-medium">Order Delivered</div>
-                      <div className="text-sm text-muted-foreground">TRK-001 delivered order ORD-1234 to Acme Corp</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-md border p-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300">
-                      08:30
-                    </div>
-                    <div>
-                      <div className="font-medium">Truck Dispatched</div>
-                      <div className="text-sm text-muted-foreground">TRK-002 dispatched to Tank 1 for refill</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-md border p-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-300">
-                      08:15
-                    </div>
-                    <div>
-                      <div className="font-medium">Tank Level Warning</div>
-                      <div className="text-sm text-muted-foreground">Tank 2 level dropped below 70% capacity</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-md border p-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300">
-                      08:00
-                    </div>
-                    <div>
-                      <div className="font-medium">Simulation Started</div>
-                      <div className="text-sm text-muted-foreground">Daily operations simulation initiated</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-md border p-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300">
-                      00:00
-                    </div>
-                    <div>
-                      <div className="font-medium">Tanks Refilled</div>
-                      <div className="text-sm text-muted-foreground">
-                        Both intermediate tanks refilled to 100% capacity
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-        </CardContent>
-      </Tabs>
-    </Card>
-  )
+// Tipos para elementos de la simulación
+type Node = {
+  x: number;
+  y: number;
+  color: string;
+  type: 'plant' | 'tank' | 'client' | 'refuelStation';
+  label?: string;
 }
 
+type ExtendedNode = Node & {
+  info?: {
+    nombre?: string;
+    direccion?: string;
+    demanda?: number; // m3 para clientes
+    ultimaEntrega?: string;
+    estadoTanque?: number; // porcentaje
+    capacidad?: number; // m3 para tanques o planta
+    horaRecarga?: string; // hora de recarga para tanques
+  }
+}
+
+type Route = {
+  from: [number, number];
+  to: [number, number];
+  color?: string;
+  routeId?: string;
+  distance?: number; // km
+  estimatedTime?: number; // minutos
+  type: 'supply' | 'delivery' | 'return' | 'refuel';
+}
+
+type VehicleIssue = {
+  description: string;
+  timestamp: string;
+};
+
+type Vehicle = {
+  id: string;
+  position: [number, number];
+  destination: [number, number];
+  progress: number; // valor entre 0 y 1
+  color: string;
+  capacity: number;
+  currentFuel: number;
+  status: 'idle' | 'delivering' | 'returning' | 'maintenance' | 'refueling';
+  maintenanceSchedule?: {
+    lastPreventive: string;
+    nextPreventive: string;
+  };
+  currentLoad?: number; // carga en m³
+  issues?: VehicleIssue[];
+};
+
+type Blockage = {
+  from: [number, number];
+  to: [number, number];
+  reason: string;
+  estimatedDuration: number; // minutos
+  startTime: string;
+  severity: 'high' | 'medium' | 'low';
+};
+
+export default function SimulationVisualizer() {
+  // Nodos: Planta principal, 3 tanques intermedios, algunos clientes y estaciones de recarga
+  const nodes: ExtendedNode[] = [
+    {
+      x: 10, y: 10,
+      color: "#1E40AF",
+      type: "plant",
+      label: "Planta Principal",
+      info: {
+        nombre: "Planta Principal PLG",
+        direccion: "Av. Industrial 1500, Zona Este",
+        capacidad: 1000,
+        estadoTanque: 98
+      }
+    },
+    {
+      x: 20, y: 20,
+      color: "#047857",
+      type: "tank",
+      label: "Tanque Intermedio Norte",
+      info: {
+        nombre: "Tanque Intermedio Norte",
+        direccion: "Av. Norte 450, Sector 3",
+        capacidad: 160,
+        estadoTanque: 75,
+        horaRecarga: "12:00"
+      }
+    },
+    {
+      x: 30, y: 30,
+      color: "#047857",
+      type: "tank",
+      label: "Tanque Intermedio Sur",
+      info: {
+        nombre: "Tanque Intermedio Sur",
+        direccion: "Av. Sur 780, Sector 8",
+        capacidad: 160,
+        estadoTanque: 62,
+        horaRecarga: "12:00"
+      }
+    },
+    {
+      x: 40, y: 40,
+      color: "#047857",
+      type: "tank",
+      label: "Tanque Intermedio Este",
+      info: {
+        nombre: "Tanque Intermedio Este",
+        direccion: "Av. Este 300, Sector 5",
+        capacidad: 160,
+        estadoTanque: 55,
+        horaRecarga: "12:00"
+      }
+    },
+    {
+      x: 15, y: 15,
+      color: "#DC2626",
+      type: "client",
+      label: "Cliente A",
+      info: {
+        nombre: "Cliente A",
+        direccion: "Zona A",
+        demanda: 18,
+        ultimaEntrega: "2023-05-15",
+        estadoTanque: 45
+      }
+    },
+    {
+      x: 25, y: 25,
+      color: "#DC2626",
+      type: "client",
+      label: "Cliente B",
+      info: {
+        nombre: "Cliente B",
+        direccion: "Zona B",
+        demanda: 8,
+        ultimaEntrega: "2023-05-14",
+        estadoTanque: 30
+      }
+    },
+    {
+      x: 35, y: 35,
+      color: "#F59E0B",
+      type: "refuelStation",
+      label: "Estación Norte"
+    },
+    {
+      x: 45, y: 45,
+      color: "#F59E0B",
+      type: "refuelStation",
+      label: "Estación Sur"
+    },
+  ];
+
+  // Rutas en la cuadrícula (se pueden ampliar según el escenario)
+  const gridRoutes: Route[] = [
+    { from: [10, 10], to: [30, 10], color: "#1E40AF", routeId: "supply-1", distance: 20, type: "supply", estimatedTime: 25 },
+    { from: [30, 10], to: [30, 30], color: "#1E40AF", routeId: "supply-2", distance: 20, type: "supply", estimatedTime: 25 },
+    { from: [10, 10], to: [10, 60], color: "#1E40AF", routeId: "supply-3", distance: 50, type: "supply", estimatedTime: 60 },
+    { from: [10, 60], to: [50, 60], color: "#1E40AF", routeId: "supply-4", distance: 40, type: "supply", estimatedTime: 50 },
+    // Puedes agregar más rutas de entrega o retorno
+  ];
+
+  // Se incluyen varios vehículos en la simulación
+  const vehicles: Vehicle[] = [
+    { 
+      id: "camion-grande-1", 
+      position: [20, 25], 
+      destination: [20, 20],
+      progress: 0.7, 
+      color: "#7E22CE", 
+      capacity: 25, 
+      currentFuel: 85, 
+      status: 'delivering',
+      currentLoad: 18, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-03-15",
+        nextPreventive: "2023-05-15"
+      },
+      issues: [
+        { description: "Falla en la transmisión", timestamp: "2023-05-10 14:30" }
+      ]
+    },
+    { 
+      id: "camion-mediano-1", 
+      position: [37, 28], 
+      destination: [40, 25],
+      progress: 0.4, 
+      color: "#7E22CE", 
+      capacity: 15, 
+      currentFuel: 70, 
+      status: 'delivering',
+      currentLoad: 8, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-04-01",
+        nextPreventive: "2023-06-01"
+      }
+    },
+    { 
+      id: "camion-pequeno-1", 
+      position: [27, 45], 
+      destination: [25, 45],
+      progress: 0.6, 
+      color: "#7E22CE", 
+      capacity: 5, 
+      currentFuel: 50, 
+      status: 'delivering',
+      currentLoad: 5, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-04-10",
+        nextPreventive: "2023-06-10"
+      }
+    },
+    { 
+      id: "camion-grande-2", 
+      position: [52, 35], 
+      destination: [55, 35],
+      progress: 0.5, 
+      color: "#7E22CE", 
+      capacity: 25, 
+      currentFuel: 60, 
+      status: 'delivering',
+      currentLoad: 22, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-03-20",
+        nextPreventive: "2023-05-20"
+      }
+    },
+    { 
+      id: "camion-mediano-2", 
+      position: [60, 62], 
+      destination: [60, 65],
+      progress: 0.3, 
+      color: "#7E22CE", 
+      capacity: 15, 
+      currentFuel: 75, 
+      status: 'delivering',
+      currentLoad: 10, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-04-05",
+        nextPreventive: "2023-06-05"
+      }
+    },
+    { 
+      id: "camion-abastecedor-1", 
+      position: [20, 10], 
+      destination: [30, 10],
+      progress: 0.8, 
+      color: "#1E40AF", 
+      capacity: 40, 
+      currentFuel: 90, 
+      status: 'delivering',
+      currentLoad: 40, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-04-15",
+        nextPreventive: "2023-06-15"
+      }
+    },
+    { 
+      id: "camion-pequeno-2", 
+      position: [40, 50], 
+      destination: [40, 45],
+      progress: 0.5, 
+      color: "#7E22CE", 
+      capacity: 5, 
+      currentFuel: 40, 
+      status: 'delivering',
+      currentLoad: 3, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-04-12",
+        nextPreventive: "2023-06-12"
+      }
+    },
+    { 
+      id: "camion-grande-3", 
+      position: [30, 20], 
+      destination: [30, 25],
+      progress: 0.6, 
+      color: "#7E22CE", 
+      capacity: 25, 
+      currentFuel: 80, 
+      status: 'delivering',
+      currentLoad: 20, 
+      maintenanceSchedule: {
+        lastPreventive: "2023-04-18",
+        nextPreventive: "2023-06-18"
+      }
+    },
+  ];
+
+  // Bloqueos de ejemplo
+  const blockages: Blockage[] = [
+    {
+      from: [20, 20],
+      to: [25, 25],
+      reason: "Bloqueo",
+      estimatedDuration: 120,
+      startTime: "08:00",
+      severity: "high"
+    },
+    {
+      from: [30, 30],
+      to: [35, 35],
+      reason: "Bloqueo",
+      estimatedDuration: 45,
+      startTime: "09:30",
+      severity: "high"
+    },
+    {
+      from: [40, 40],
+      to: [45, 45],
+      reason: "Bloqueo",
+      estimatedDuration: 180,
+      startTime: "10:00",
+      severity: "high"
+    }
+  ];
+
+  // Zoom fijo y posición
+  const [scale] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Para mostrar detalles del vehículo seleccionado
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [hoveredVehicle, setHoveredVehicle] = useState<Vehicle | null>(null);
+
+  // Estado de simulación para animar vehículos
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [simulationTime, setSimulationTime] = useState(0);
+  const animationRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number | null>(null);
+
+  // Actualización de posiciones de vehículos según el tiempo de simulación
+  const calculateVehiclePositions = () => {
+    return vehicles.map(vehicle => {
+      const cycleTime = 180;
+      const calculatedProgress = ((simulationTime % cycleTime) / cycleTime);
+      let status: Vehicle['status'] = 'idle';
+      if (calculatedProgress < 0.4) status = 'delivering';
+      else if (calculatedProgress < 0.7) status = 'returning';
+      else if (calculatedProgress < 0.8) status = 'refueling';
+      else status = 'idle';
+      
+      return {
+        ...vehicle,
+        progress: calculatedProgress,
+        status
+      };
+    });
+  };
+
+  const currentVehicles = calculateVehiclePositions();
+
+  // Función para calcular la posición entre dos puntos en función del progreso
+  const calculatePosition = (start: [number, number], end: [number, number], progress: number): [number, number] => {
+    return [
+      start[0] + (end[0] - start[0]) * progress,
+      start[1] + (end[1] - start[1]) * progress
+    ];
+  };
+
+  // Determinar el color del vehículo según su estado
+  const getVehicleColor = (vehicle: Vehicle) => {
+    switch(vehicle.status) {
+      case 'delivering': return (vehicle.currentLoad && vehicle.currentLoad > 30) ? '#1E40AF' : '#047857';
+      case 'returning': return '#7E22CE';
+      case 'maintenance': return '#DC2626';
+      case 'refueling': return '#F59E0B';
+      default: return '#6B7280';
+    }
+  };
+
+  // Al hacer click en un vehículo, se muestran sus detalles
+  const handleVehicleClick = (vehicle: Vehicle) => {
+    setSelectedVehicle(vehicle);
+  };
+
+  // Animación de la simulación
+  const animateSimulation = (timestamp: number) => {
+    if (!lastTimeRef.current) {
+      lastTimeRef.current = timestamp;
+    }
+    const deltaTime = timestamp - lastTimeRef.current;
+    lastTimeRef.current = timestamp;
+    setSimulationTime(prevTime => prevTime + (deltaTime * playbackSpeed) / 1000);
+    if (isPlaying) {
+      animationRef.current = requestAnimationFrame(animateSimulation);
+    }
+  };
+
+  useEffect(() => {
+    if (isPlaying) {
+      lastTimeRef.current = null;
+      animationRef.current = requestAnimationFrame(animateSimulation);
+    } else if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    }
+  }, [isPlaying, playbackSpeed]);
+
+  return (
+    <div className="relative">
+      <div className="border rounded-md bg-white overflow-hidden w-full h-[730px]">
+        <svg
+          ref={svgRef}
+          width={GRID_WIDTH * GRID_SIZE}
+          height={GRID_HEIGHT * GRID_SIZE}
+          className="bg-white"
+        >
+          <g transform={`translate(${position.x}, ${position.y}) scale(${scale})`}>
+            {/* Dibujando la cuadrícula */}
+            {Array.from({ length: GRID_WIDTH + 1 }).map((_, i) => (
+              <line
+                key={`v-${i}`}
+                x1={i * GRID_SIZE}
+                y1={0}
+                x2={i * GRID_SIZE}
+                y2={GRID_HEIGHT * GRID_SIZE}
+                stroke="#e2e8f0"
+                strokeWidth={1/scale}
+              />
+            ))}
+            {Array.from({ length: GRID_HEIGHT + 1 }).map((_, j) => (
+              <line
+                key={`h-${j}`}
+                x1={0}
+                y1={j * GRID_SIZE}
+                x2={GRID_WIDTH * GRID_SIZE}
+                y2={j * GRID_SIZE}
+                stroke="#e2e8f0"
+                strokeWidth={1/scale}
+              />
+            ))}
+            {/* Rutas de la cuadrícula */}
+            {gridRoutes.map((r, i) => (
+              <line
+                key={`grid-route-${i}`}
+                x1={r.from[0] * GRID_SIZE + GRID_SIZE / 2}
+                y1={r.from[1] * GRID_SIZE + GRID_SIZE / 2}
+                x2={r.to[0] * GRID_SIZE + GRID_SIZE / 2}
+                y2={r.to[1] * GRID_SIZE + GRID_SIZE / 2}
+                stroke={r.type === 'supply' ? '#1E40AF' :
+                        r.type === 'delivery' ? '#047857' :
+                        r.type === 'return' ? '#7E22CE' : '#F59E0B'}
+                strokeWidth={2/scale}
+                strokeDasharray={(r.type === 'return' || r.type === 'refuel') ? `${5/scale},${5/scale}` : "none"}
+              />
+            ))}
+            {/* Dibujando bloqueos */}
+            {blockages.map((bloqueo, i) => (
+              <g key={`blockage-${i}`}>
+                <line
+                  x1={bloqueo.from[0] * GRID_SIZE + GRID_SIZE / 2}
+                  y1={bloqueo.from[1] * GRID_SIZE + GRID_SIZE / 2}
+                  x2={bloqueo.to[0] * GRID_SIZE + GRID_SIZE / 2}
+                  y2={bloqueo.to[1] * GRID_SIZE + GRID_SIZE / 2}
+                  stroke={
+                    bloqueo.severity === 'high'
+                    ? '#EF4444'
+                    : bloqueo.severity === 'medium'
+                      ? '#F59E0B'
+                      : '#FCD34D'
+                  }
+                  strokeWidth={4/scale}
+                  strokeDasharray={`${8/scale},${4/scale}`}
+                />
+                <text
+                  x={(bloqueo.from[0] + bloqueo.to[0]) * GRID_SIZE / 2 + GRID_SIZE / 2}
+                  y={(bloqueo.from[1] + bloqueo.to[1]) * GRID_SIZE / 2 + GRID_SIZE / 2 - 10/scale}
+                  fontSize={`${8/scale}px`}
+                  fill="#000"
+                  textAnchor="middle"
+                >
+                  {bloqueo.reason}
+                </text>
+              </g>
+            ))}
+            {/* Dibujando nodos (plantas, tanques, clientes, estaciones) */}
+            {nodes.map((node, i) => (
+              <g key={`node-${i}`}>
+                <circle
+                  cx={node.x * GRID_SIZE + GRID_SIZE / 2}
+                  cy={node.y * GRID_SIZE + GRID_SIZE / 2}
+                  r={(node.type === 'refuelStation' ? 4 : 6) / Math.sqrt(scale)}
+                  fill={node.color}
+                  stroke={node.type === 'tank' ? '#047857' : node.type === 'plant' ? '#1E3A8A' : 'none'}
+                  strokeWidth={1/scale}
+                />
+                {node.label && (
+                  <text
+                    x={node.x * GRID_SIZE + GRID_SIZE / 2 + 8/scale}
+                    y={node.y * GRID_SIZE + GRID_SIZE / 2 + 4/scale}
+                    fontSize={`${10/scale}px`}
+                    fill="#4B5563"
+                  >
+                    {node.label}
+                  </text>
+                )}
+              </g>
+            ))}
+            {/* Dibujando vehículos y asignándoles funcionalidad de click y hover */}
+            {currentVehicles.map((vehicle, i) => {
+              const currentPos = calculatePosition(vehicle.position, vehicle.destination, vehicle.progress);
+              const direction = vehicle.destination[0] > vehicle.position[0]
+                ? '→'
+                : vehicle.destination[0] < vehicle.position[0]
+                  ? '←'
+                  : vehicle.destination[1] > vehicle.position[1]
+                    ? '↓' : '↑';
+              return (
+                <g
+                  key={`vehicle-${i}`}
+                  transform={`translate(${currentPos[0] * GRID_SIZE}, ${currentPos[1] * GRID_SIZE})`}
+                  onClick={() => handleVehicleClick(vehicle)}
+                  onMouseEnter={() => setHoveredVehicle(vehicle)}
+                  onMouseLeave={() => setHoveredVehicle(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <rect
+                    x={-6/scale}
+                    y={-3/scale}
+                    width={12/scale}
+                    height={6/scale}
+                    fill={getVehicleColor(vehicle)}
+                    stroke="#000"
+                    strokeWidth={0.5/scale}
+                  />
+                  <text
+                    x={0}
+                    y={-8/scale}
+                    fontSize={`${8/scale}px`}
+                    fill="#000"
+                    textAnchor="middle"
+                  >
+                    {direction}
+                  </text>
+                  <circle cx={-3/scale} cy={4/scale} r={1.5/scale} fill="#000" />
+                  <circle cx={3/scale} cy={4/scale} r={1.5/scale} fill="#000" />
+                  <rect
+                    x={-5/scale}
+                    y={-6/scale}
+                    width={(10 * (vehicle.currentFuel / 100))/scale}
+                    height={2/scale}
+                    fill={vehicle.currentFuel > 30 ? '#10B981' : '#EF4444'}
+                  />
+                  <text
+                    x={0}
+                    y={0}
+                    fontSize={`${6/scale}px`}
+                    fill="#FFF"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                  >
+                    {vehicle.capacity}m³
+                  </text>
+                </g>
+              );
+            })}
+            {/* Tooltip para mostrar información del vehículo al hacer hover */}
+            {hoveredVehicle && (
+              <foreignObject
+                x={(hoveredVehicle.position[0] * GRID_SIZE) + 10}
+                y={(hoveredVehicle.position[1] * GRID_SIZE) - 20}
+                width={150}
+                height={50}
+              >
+                <div className="bg-white p-2 rounded shadow-md text-xs">
+                  <p><strong>ID:</strong> {hoveredVehicle.id}</p>
+                  <p><strong>Combustible:</strong> {hoveredVehicle.currentFuel}%</p>
+                </div>
+              </foreignObject>
+            )}
+          </g>
+        </svg>
+      </div>
+      {/* Panel de detalles del vehículo seleccionado */}
+      {selectedVehicle && (
+        <div 
+          className="absolute top-4 right-4 bg-white p-4 rounded shadow-md z-10"
+          style={{ width: '300px' }}
+        >
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="font-bold text-lg">Detalles del Vehículo</h2>
+            <button onClick={() => setSelectedVehicle(null)} className="text-gray-500">Cerrar</button>
+          </div>
+          <p><strong>ID:</strong> {selectedVehicle.id}</p>
+          <p><strong>Capacidad:</strong> {selectedVehicle.capacity} m³</p>
+          <p><strong>Carga Actual:</strong> {selectedVehicle.currentLoad} m³</p>
+          <p><strong>Combustible:</strong> {selectedVehicle.currentFuel}%</p>
+          <p><strong>Estado:</strong> {selectedVehicle.status}</p>
+          {selectedVehicle.issues && selectedVehicle.issues.length > 0 && (
+            <div className="mt-3">
+              <h3 className="font-bold">Averías</h3>
+              {selectedVehicle.issues.map((issue, idx) => (
+                <div key={idx} className="border p-1 my-1 rounded">
+                  <p><strong>Descripción:</strong> {issue.description}</p>
+                  <p><strong>Hora:</strong> {issue.timestamp}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-3">
+            <h3 className="font-bold">Bloqueos Cercanos</h3>
+            {blockages.filter(b => {
+              const [vx, vy] = calculatePosition(selectedVehicle.position, selectedVehicle.destination, selectedVehicle.progress);
+              const dist = (point: [number, number]) => Math.hypot(vx - point[0], vy - point[1]);
+              return dist(b.from) < 10 || dist(b.to) < 10;
+            }).map((b, idx) => (
+              <div key={idx} className="border p-1 my-1 rounded">
+                <p><strong>Razón:</strong> {b.reason}</p>
+                <p><strong>Severidad:</strong> {b.severity}</p>
+                <p><strong>Duración Estimada:</strong> {b.estimatedDuration} mins</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

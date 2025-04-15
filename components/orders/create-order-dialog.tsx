@@ -27,7 +27,7 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    toast("Order created successfully!")
+    toast("¡Pedido creado con éxito!")
     setOpen(false)
   }
 
@@ -37,18 +37,18 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create New Order</DialogTitle>
-            <DialogDescription>Enter the details for the new GLP delivery order.</DialogDescription>
+            <DialogTitle>Crear Nuevo Pedido</DialogTitle>
+            <DialogDescription>Introduce los detalles para el nuevo pedido de entrega GLP.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="customer" className="text-right">
-                Customer
+                Cliente
               </Label>
               <div className="col-span-3">
                 <Select required>
                   <SelectTrigger id="customer">
-                    <SelectValue placeholder="Select customer" />
+                    <SelectValue placeholder="Selecciona un cliente" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="acme">Acme Corp</SelectItem>
@@ -62,12 +62,12 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="location" className="text-right">
-                Location
+                Ubicación
               </Label>
               <div className="col-span-3">
                 <Select required>
                   <SelectTrigger id="location">
-                    <SelectValue placeholder="Select location" />
+                    <SelectValue placeholder="Selecciona una ubicación" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="a5">Sector A-5 (3.2km)</SelectItem>
@@ -81,20 +81,20 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="volume" className="text-right">
-                Volume (m³)
+                Volumen (m³)
               </Label>
               <Input
                 id="volume"
                 type="number"
                 min="1"
                 max="25"
-                placeholder="Enter volume"
+                placeholder="Introduce el volumen"
                 className="col-span-3"
                 required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Deadline Date</Label>
+              <Label className="text-right">Fecha Límite</Label>
               <div className="col-span-3">
                 <Popover>
                   <PopoverTrigger asChild>
@@ -103,7 +103,7 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
                       className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : <span>Select date</span>}
+                      {date ? format(date, "PPP") : <span>Selecciona una fecha</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -114,12 +114,12 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="time" className="text-right">
-                Deadline Time
+                Hora Límite
               </Label>
               <div className="col-span-3">
                 <Select required>
                   <SelectTrigger id="time">
-                    <SelectValue placeholder="Select time" />
+                    <SelectValue placeholder="Selecciona una hora" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="9:00">09:00</SelectItem>
@@ -137,33 +137,33 @@ export function CreateOrderDialog({ children }: { children: React.ReactNode }) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="priority" className="text-right">
-                Priority
+                Prioridad
               </Label>
               <div className="col-span-3">
                 <Select defaultValue="normal">
                   <SelectTrigger id="priority">
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue placeholder="Selecciona la prioridad" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
                     <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="low">Baja</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="notes" className="text-right">
-                Notes
+                Notas
               </Label>
-              <Input id="notes" placeholder="Additional information" className="col-span-3" />
+              <Input id="notes" placeholder="Información adicional" className="col-span-3" />
             </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              Cancelar
             </Button>
-            <Button type="submit">Create Order</Button>
+            <Button type="submit">Crear Pedido</Button>
           </DialogFooter>
         </form>
       </DialogContent>

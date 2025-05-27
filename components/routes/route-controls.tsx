@@ -1,22 +1,39 @@
-"use client"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { Truck, Fuel, Clock, RotateCw } from "lucide-react"
-import { toast } from "sonner"
+"use client";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Truck, Fuel, Clock, RotateCw } from "lucide-react";
+import { toast } from "sonner";
 
-export function RouteControls() {
+interface RouteControlsProps {
+  onOptimizationStart?: () => void;
+  isOptimizing?: boolean;
+}
 
+export function RouteControls({ onOptimizationStart, isOptimizing = false }: RouteControlsProps) {
   const handleOptimize = () => {
     toast("Optimization started");
-  }
-
+    onOptimizationStart?.();
+  };
   return (
     <Card className="h-fit">
       <CardHeader>
@@ -61,7 +78,9 @@ export function RouteControls() {
             <div className="flex items-center justify-between space-x-2">
               <Label htmlFor="parallel" className="flex flex-col space-y-1">
                 <span>Parallel Processing</span>
-                <span className="font-normal text-xs text-muted-foreground">Use multiple CPU cores</span>
+                <span className="font-normal text-xs text-muted-foreground">
+                  Use multiple CPU cores
+                </span>
               </Label>
               <Switch id="parallel" defaultChecked />
             </div>
@@ -99,7 +118,9 @@ export function RouteControls() {
             <div className="flex items-center justify-between space-x-2">
               <Label htmlFor="maintenance" className="flex flex-col space-y-1">
                 <span>Consider Maintenance</span>
-                <span className="font-normal text-xs text-muted-foreground">Include scheduled maintenance</span>
+                <span className="font-normal text-xs text-muted-foreground">
+                  Include scheduled maintenance
+                </span>
               </Label>
               <Switch id="maintenance" defaultChecked />
             </div>
@@ -138,15 +159,14 @@ export function RouteControls() {
         </div>
       </CardContent>
       <CardFooter className="flex flex-col gap-2">
-        <Button className="w-full" onClick={handleOptimize}>
-          <RotateCw className="mr-2 h-4 w-4" />
-          Run Optimization
+        <Button className="w-full" onClick={handleOptimize} disabled={isOptimizing}>
+          <RotateCw className={`mr-2 h-4 w-4 ${isOptimizing ? "animate-spin" : ""}`} />
+          {isOptimizing ? "Optimizing..." : "Run Optimization"}
         </Button>
         <Button variant="outline" className="w-full">
           Reset Parameters
         </Button>
       </CardFooter>
     </Card>
-  )
+  );
 }
-

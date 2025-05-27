@@ -1,213 +1,390 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { ZoomIn, ZoomOut, Layers, Truck, Home, Package, Fuel } from "lucide-react"
+import * as React from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { ZoomIn, ZoomOut, Layers, Truck, Play, Pause, Square } from "lucide-react";
 
-export function RouteMap() {
-  const canvasRef = React.useRef<HTMLCanvasElement>(null)
-  const [zoom, setZoom] = React.useState(1)
+// Tipos para la simulación
+interface RoutePoint {
+  x: number;
+  y: number;
+}
+
+interface SimulationData {
+  route: RoutePoint[];
+  customer: RoutePoint;
+  startTime: string;
+}
+
+interface RouteMapProps {
+  onOptimizationStart?: () => void;
+  simulationData?: SimulationData | null;
+  isOptimizing?: boolean;
+}
+
+export function RouteMap({
+  onOptimizationStart,
+  simulationData,
+  isOptimizing = false,
+}: RouteMapProps) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [zoom, setZoom] = React.useState(1);
+
+  // Estados de simulación
+  const [isSimulating, setIsSimulating] = React.useState(false);
+  const [currentRouteIndex, setCurrentRouteIndex] = React.useState(0);
+  const [simulationTime, setSimulationTime] = React.useState(0); // en segundos
+  const [isPaused, setIsPaused] = React.useState(false);
+
+  // Configuración del mapa
+  const MAP_WIDTH = 70;
+  const MAP_HEIGHT = 50;
+
+  // Posiciones de los almacenes
+  const MAIN_WAREHOUSE = { x: 12, y: 8 };
+  const NORTH_WAREHOUSE = { x: 42, y: 42 };
+  const EAST_WAREHOUSE = { x: 63, y: 3 };
+
+  // Generar ruta sintética (esto será reemplazado por API)
+  const generateSyntheticRoute = (): SimulationData => {
+    const customer = { x: 25, y: 15 }; // Cliente ejemplo
+
+    // Ruta de ida (movimientos ortogonales desde almacén central al cliente)
+    const routeToCustomer: RoutePoint[] = [];
+    let currentX = MAIN_WAREHOUSE.x;
+    let currentY = MAIN_WAREHOUSE.y;
+
+    // Primero moverse horizontalmente
+    while (currentX !== customer.x) {
+      if (currentX < customer.x) currentX++;
+      else currentX--;
+      routeToCustomer.push({ x: currentX, y: currentY });
+    }
+
+    // Luego moverse verticalmente
+    while (currentY !== customer.y) {
+      if (currentY < customer.y) currentY++;
+      else currentY--;
+      routeToCustomer.push({ x: currentX, y: currentY });
+    }
+
+    // Ruta de vuelta (del cliente al almacén central)
+    const routeToWarehouse: RoutePoint[] = [];
+    currentX = customer.x;
+    currentY = customer.y;
+
+    // Primero verticalmente
+    while (currentY !== MAIN_WAREHOUSE.y) {
+      if (currentY > MAIN_WAREHOUSE.y) currentY--;
+      else currentY++;
+      routeToWarehouse.push({ x: currentX, y: currentY });
+    }
+
+    // Luego horizontalmente
+    while (currentX !== MAIN_WAREHOUSE.x) {
+      if (currentX > MAIN_WAREHOUSE.x) currentX--;
+      else currentX++;
+      routeToWarehouse.push({ x: currentX, y: currentY });
+    }
+
+    // Combinar rutas: almacén -> cliente -> almacén
+    const completeRoute = [
+      MAIN_WAREHOUSE, // Punto inicial
+      ...routeToCustomer,
+      ...routeToWarehouse,
+    ];
+
+    return {
+      route: completeRoute,
+      customer,
+      startTime: "00:00:00",
+    };
+  };
+
+  // Efecto para manejar la optimización
+  React.useEffect(() => {
+    if (isOptimizing && !isSimulating) {
+      // Simular tiempo de optimización
+      setTimeout(() => {
+        const route = generateSyntheticRoute();
+        setIsSimulating(true);
+        setCurrentRouteIndex(0);
+        setSimulationTime(0);
+        setIsPaused(false);
+      }, 2000); // 2 segundos de "optimización"
+    }
+  }, [isOptimizing]);
+
+  // Efecto para la simulación paso a paso
+  React.useEffect(() => {
+    if (!isSimulating || isPaused || !simulationData) return;
+
+    const interval = setInterval(() => {
+      setSimulationTime((prev) => prev + 72); // 72 segundos por paso
+
+      setCurrentRouteIndex((prev) => {
+        const nextIndex = prev + 1;
+        if (nextIndex >= simulationData.route.length) {
+          setIsSimulating(false);
+          return prev;
+        }
+        return nextIndex;
+      });
+    }, 1000); // 1 segundo real = 72 segundos simulados
+
+    return () => clearInterval(interval);
+  }, [isSimulating, isPaused, simulationData]);
+
+  // Función para formatear tiempo
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  // Funciones de control de simulación
+  const handlePlayPause = () => {
+    setIsPaused(!isPaused);
+  };
+
+  const handleStop = () => {
+    setIsSimulating(false);
+    setCurrentRouteIndex(0);
+    setSimulationTime(0);
+    setIsPaused(false);
+  };
 
   React.useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    // Set canvas dimensions
-    canvas.width = canvas.offsetWidth
-    canvas.height = canvas.offsetHeight
+    const resizeCanvas = () => {
+      const container = canvas.parentElement;
+      if (!container) return;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
 
-    // Apply zoom
-    ctx.save()
-    ctx.scale(zoom, zoom)
+      drawCanvas(ctx, canvas.width, canvas.height);
+    };
 
-    // Draw grid
-    drawGrid(ctx, canvas.width / zoom, canvas.height / zoom)
+    const drawCanvas = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      ctx.clearRect(0, 0, width, height);
 
-    // Draw map elements
-    drawMapElements(ctx)
+      ctx.save();
+      const centerX = width / 2;
+      const centerY = height / 2;
 
-    ctx.restore()
-  }, [zoom])
+      ctx.translate(centerX, centerY);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-centerX, -centerY);
 
-  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const gridSize = 40
-    ctx.strokeStyle = "#e2e8f0"
-    ctx.lineWidth = 0.5
+      drawGrid(ctx, width, height);
+      drawMapElements(ctx, width, height);
 
-    // Draw vertical lines
-    for (let x = 0; x <= width; x += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, height)
-      ctx.stroke()
+      ctx.restore();
+    };
+
+    resizeCanvas();
+
+    const resizeObserver = new ResizeObserver(resizeCanvas);
+    resizeObserver.observe(canvas.parentElement!);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [zoom, currentRouteIndex, simulationData]);
+
+  const drawGrid = (ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) => {
+    const baseCellWidth = canvasWidth / MAP_WIDTH;
+    const baseCellHeight = canvasHeight / MAP_HEIGHT;
+    const baseCellSize = Math.min(baseCellWidth, baseCellHeight);
+
+    const mapRealWidth = MAP_WIDTH * baseCellSize;
+    const mapRealHeight = MAP_HEIGHT * baseCellSize;
+
+    const offsetX = (canvasWidth - mapRealWidth) / 2;
+    const offsetY = (canvasHeight - mapRealHeight) / 2;
+
+    ctx.translate(offsetX, offsetY);
+
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 0.5 / zoom;
+
+    // Líneas verticales
+    for (let x = 0; x <= MAP_WIDTH; x++) {
+      const xPos = x * baseCellSize;
+      ctx.beginPath();
+      ctx.moveTo(xPos, 0);
+      ctx.lineTo(xPos, MAP_HEIGHT * baseCellSize);
+      ctx.stroke();
     }
 
-    // Draw horizontal lines
-    for (let y = 0; y <= height; y += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
-      ctx.stroke()
+    // Líneas horizontales
+    for (let y = 0; y <= MAP_HEIGHT; y++) {
+      const yPos = y * baseCellSize;
+      ctx.beginPath();
+      ctx.moveTo(0, yPos);
+      ctx.lineTo(MAP_WIDTH * baseCellSize, yPos);
+      ctx.stroke();
     }
 
-    // Draw coordinate labels
-    ctx.fillStyle = "#94a3b8"
-    ctx.font = "10px sans-serif"
+    // Etiquetas de coordenadas
+    ctx.fillStyle = "#94a3b8";
+    const fontSize = Math.max(8, baseCellSize * 0.3);
+    ctx.font = `${fontSize}px sans-serif`;
 
-    // X-axis labels (A, B, C, etc.)
-    for (let x = gridSize; x < width; x += gridSize) {
-      const label = String.fromCharCode(64 + Math.floor(x / gridSize))
-      ctx.fillText(label, x - 3, 12)
+    // Etiquetas X
+    for (let x = 0; x <= MAP_WIDTH; x += 5) {
+      const xPos = x * baseCellSize;
+      ctx.fillText(x.toString(), xPos + 2, 12);
     }
 
-    // Y-axis labels (1, 2, 3, etc.)
-    for (let y = gridSize; y < height; y += gridSize) {
-      const label = Math.floor(y / gridSize).toString()
-      ctx.fillText(label, 5, y + 4)
+    // Etiquetas Y
+    for (let y = 0; y <= MAP_HEIGHT; y += 5) {
+      const yPos = y * baseCellSize;
+      ctx.fillText(y.toString(), 2, yPos + 12);
     }
-  }
 
-  const drawMapElements = (ctx: CanvasRenderingContext2D) => {
-    const gridSize = 40
+    return { baseCellSize, offsetX, offsetY };
+  };
 
-    // Draw main plant
-    ctx.fillStyle = "#3b82f6"
-    ctx.beginPath()
-    ctx.arc(gridSize * 5, gridSize * 5, 10, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = "#1e293b"
-    ctx.font = "12px sans-serif"
-    ctx.fillText("Main Plant", gridSize * 5 - 30, gridSize * 5 - 15)
+  const drawMapElements = (
+    ctx: CanvasRenderingContext2D,
+    canvasWidth: number,
+    canvasHeight: number
+  ) => {
+    const baseCellWidth = canvasWidth / MAP_WIDTH;
+    const baseCellHeight = canvasHeight / MAP_HEIGHT;
+    const baseCellSize = Math.min(baseCellWidth, baseCellHeight);
 
-    // Draw tanks
-    ctx.fillStyle = "#10b981"
-    ctx.beginPath()
-    ctx.arc(gridSize * 8, gridSize * 3, 8, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillText("Tank 1", gridSize * 8 - 20, gridSize * 3 - 12)
+    const mapRealWidth = MAP_WIDTH * baseCellSize;
+    const mapRealHeight = MAP_HEIGHT * baseCellSize;
 
-    ctx.beginPath()
-    ctx.arc(gridSize * 3, gridSize * 8, 8, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillText("Tank 2", gridSize * 3 - 20, gridSize * 8 - 12)
+    const offsetX = (canvasWidth - mapRealWidth) / 2;
+    const offsetY = (canvasHeight - mapRealHeight) / 2;
 
-    // Draw customers
-    const customers = [
-      { x: 2, y: 3, name: "Acme Corp" },
-      { x: 7, y: 7, name: "TechSolutions" },
-      { x: 10, y: 4, name: "Global Ind." },
-      { x: 4, y: 10, name: "City Hospital" },
-      { x: 9, y: 9, name: "Metro Hotel" },
-    ]
+    ctx.translate(offsetX, offsetY);
 
-    ctx.fillStyle = "#f59e0b"
-    customers.forEach((customer) => {
-      ctx.beginPath()
-      ctx.rect(customer.x * gridSize - 6, customer.y * gridSize - 6, 12, 12)
-      ctx.fill()
-      ctx.fillStyle = "#1e293b"
-      ctx.fillText(customer.name, customer.x * gridSize - 30, customer.y * gridSize - 12)
-      ctx.fillStyle = "#f59e0b"
-    })
+    const mapToCanvas = (x: number, y: number) => ({
+      x: x * baseCellSize,
+      y: y * baseCellSize,
+    });
 
-    // Draw trucks
-    const trucks = [
-      { x: 5.5, y: 5.5, angle: 45 },
-      { x: 6.2, y: 4.3, angle: 90 },
-      { x: 3.8, y: 7.2, angle: 180 },
-      { x: 8.5, y: 8.1, angle: 270 },
-      { x: 9.2, y: 3.5, angle: 315 },
-    ]
+    // Dibujar almacenes
+    // Almacén principal
+    const mainPos = mapToCanvas(MAIN_WAREHOUSE.x, MAIN_WAREHOUSE.y);
+    ctx.fillStyle = "#3b82f6";
+    ctx.beginPath();
+    ctx.arc(mainPos.x, mainPos.y, baseCellSize * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1e293b";
+    const fontSize = Math.max(10, baseCellSize * 0.4);
+    ctx.font = `${fontSize}px sans-serif`;
+    ctx.fillText("Almacén Central", mainPos.x - baseCellSize * 2, mainPos.y - baseCellSize * 1.5);
 
-    ctx.fillStyle = "#ef4444"
-    trucks.forEach((truck) => {
-      ctx.save()
-      ctx.translate(truck.x * gridSize, truck.y * gridSize)
-      ctx.rotate((truck.angle * Math.PI) / 180)
+    // Almacén Norte
+    const northPos = mapToCanvas(NORTH_WAREHOUSE.x, NORTH_WAREHOUSE.y);
+    ctx.fillStyle = "#10b981";
+    ctx.beginPath();
+    ctx.arc(northPos.x, northPos.y, baseCellSize * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1e293b";
+    ctx.fillText("Almacén Norte", northPos.x - baseCellSize * 2, northPos.y - baseCellSize * 1.2);
 
-      // Draw truck as triangle
-      ctx.beginPath()
-      ctx.moveTo(0, -6)
-      ctx.lineTo(-4, 6)
-      ctx.lineTo(4, 6)
-      ctx.closePath()
-      ctx.fill()
+    // Almacén Este
+    const eastPos = mapToCanvas(EAST_WAREHOUSE.x, EAST_WAREHOUSE.y);
+    ctx.fillStyle = "#10b981";
+    ctx.beginPath();
+    ctx.arc(eastPos.x, eastPos.y, baseCellSize * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1e293b";
+    ctx.fillText("Almacén Este", eastPos.x - baseCellSize * 2, eastPos.y - baseCellSize * 1.2);
 
-      ctx.restore()
-    })
+    // Dibujar cliente si existe simulationData
+    if (simulationData) {
+      const customerPos = mapToCanvas(simulationData.customer.x, simulationData.customer.y);
+      ctx.fillStyle = "#f59e0b";
+      ctx.beginPath();
+      ctx.rect(
+        customerPos.x - baseCellSize * 0.3,
+        customerPos.y - baseCellSize * 0.3,
+        baseCellSize * 0.6,
+        baseCellSize * 0.6
+      );
+      ctx.fill();
+      ctx.fillStyle = "#1e293b";
+      const customerFontSize = Math.max(8, baseCellSize * 0.3);
+      ctx.font = `${customerFontSize}px sans-serif`;
+      ctx.fillText("Cliente", customerPos.x - baseCellSize * 1, customerPos.y - baseCellSize * 0.8);
 
-    // Draw routes
-    ctx.strokeStyle = "#3b82f6"
-    ctx.lineWidth = 2
+      // Dibujar ruta recorrida
+      if (currentRouteIndex > 0) {
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 3 / zoom;
+        ctx.beginPath();
 
-    // Route 1: Main Plant to Customer 1
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 5, gridSize * 5)
-    ctx.lineTo(gridSize * 2, gridSize * 3)
-    ctx.stroke()
+        for (let i = 0; i < currentRouteIndex && i < simulationData.route.length - 1; i++) {
+          const from = mapToCanvas(simulationData.route[i].x, simulationData.route[i].y);
+          const to = mapToCanvas(simulationData.route[i + 1].x, simulationData.route[i + 1].y);
 
-    // Route 2: Main Plant to Tank 1 to Customer 3
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 5, gridSize * 5)
-    ctx.lineTo(gridSize * 8, gridSize * 3)
-    ctx.lineTo(gridSize * 10, gridSize * 4)
-    ctx.stroke()
+          if (i === 0) {
+            ctx.moveTo(from.x, from.y);
+          }
+          ctx.lineTo(to.x, to.y);
+        }
+        ctx.stroke();
+      }
 
-    // Route 3: Tank 2 to Customer 4
-    ctx.strokeStyle = "#10b981"
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 3, gridSize * 8)
-    ctx.lineTo(gridSize * 4, gridSize * 10)
-    ctx.stroke()
+      // Dibujar camión en posición actual
+      if (currentRouteIndex < simulationData.route.length) {
+        const currentPos = simulationData.route[currentRouteIndex];
+        const truckPos = mapToCanvas(currentPos.x, currentPos.y);
 
-    // Route 4: Main Plant to Customer 2 to Customer 5
-    ctx.strokeStyle = "#f59e0b"
-    ctx.beginPath()
-    ctx.moveTo(gridSize * 5, gridSize * 5)
-    ctx.lineTo(gridSize * 7, gridSize * 7)
-    ctx.lineTo(gridSize * 9, gridSize * 9)
-    ctx.stroke()
+        ctx.fillStyle = "#ef4444";
+        ctx.save();
+        ctx.translate(truckPos.x, truckPos.y);
 
-    // Draw route direction arrows
-    drawArrow(ctx, gridSize * 3.5, gridSize * 4, 135)
-    drawArrow(ctx, gridSize * 6.5, gridSize * 4, 45)
-    drawArrow(ctx, gridSize * 9, gridSize * 3.5, 0)
-    drawArrow(ctx, gridSize * 3.5, gridSize * 9, 45)
-    drawArrow(ctx, gridSize * 6, gridSize * 6, 45)
-    drawArrow(ctx, gridSize * 8, gridSize * 8, 45)
-  }
+        // Calcular ángulo de rotación basado en dirección
+        let angle = 0;
+        if (currentRouteIndex > 0 && currentRouteIndex < simulationData.route.length) {
+          const prevPos = simulationData.route[currentRouteIndex - 1];
+          const dx = currentPos.x - prevPos.x;
+          const dy = currentPos.y - prevPos.y;
+          angle = Math.atan2(dy, dx);
+        }
 
-  const drawArrow = (ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) => {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate((angle * Math.PI) / 180)
+        ctx.rotate(angle);
 
-    ctx.fillStyle = ctx.strokeStyle
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.lineTo(-5, -3)
-    ctx.lineTo(-5, 3)
-    ctx.closePath()
-    ctx.fill()
+        // Dibujar camión como triángulo
+        ctx.beginPath();
+        ctx.moveTo(baseCellSize * 0.4, 0);
+        ctx.lineTo(-baseCellSize * 0.3, -baseCellSize * 0.3);
+        ctx.lineTo(-baseCellSize * 0.3, baseCellSize * 0.3);
+        ctx.closePath();
+        ctx.fill();
 
-    ctx.restore()
-  }
+        ctx.restore();
+      }
+    }
+  };
 
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.2, 2))
-  }
+    setZoom((prev) => Math.min(prev + 0.2, 3));
+  };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.2, 0.6))
-  }
+    setZoom((prev) => Math.max(prev - 0.2, 0.5));
+  };
 
   return (
     <Card className="h-[calc(100vh-12rem)]">
@@ -216,9 +393,19 @@ export function RouteMap() {
           <TabsList className="h-12">
             <TabsTrigger value="map">Map View</TabsTrigger>
             <TabsTrigger value="list">Route List</TabsTrigger>
-            <TabsTrigger value="comparison">Comparison</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-1">
+            {/* Controles de simulación */}
+            {isSimulating && (
+              <>
+                <Button variant="ghost" size="icon" onClick={handlePlayPause}>
+                  {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleStop}>
+                  <Square className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             <Button variant="ghost" size="icon" onClick={handleZoomOut}>
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -232,189 +419,105 @@ export function RouteMap() {
         </div>
         <CardContent className="p-0">
           <TabsContent value="map" className="m-0 h-full">
-            <div className="relative h-full w-full">
-              <canvas ref={canvasRef} className="h-full w-full" />
+            <div className="relative h-full w-full overflow-hidden">
+              <canvas
+                ref={canvasRef}
+                className="block w-full h-full"
+                style={{ maxWidth: "100%", maxHeight: "100%" }}
+              />
+
+              {/* Información de simulación */}
+              {isSimulating && simulationData && (
+                <div className="absolute top-4 left-4 flex flex-col gap-1 bg-background/90 p-3 rounded-md border">
+                  <div className="font-medium text-sm">Simulación Activa</div>
+                  <div className="text-xs">Tiempo: {formatTime(simulationTime)}</div>
+                  <div className="text-xs">
+                    Paso: {currentRouteIndex + 1}/{simulationData.route.length}
+                  </div>
+                  <div className="text-xs">
+                    Posición: ({simulationData.route[currentRouteIndex]?.x},{" "}
+                    {simulationData.route[currentRouteIndex]?.y})
+                  </div>
+                  {isPaused && <div className="text-xs text-yellow-600">PAUSADO</div>}
+                </div>
+              )}
+
+              {/* Leyenda */}
               <div className="absolute bottom-4 left-4 flex flex-col gap-2 bg-background/80 p-2 rounded-md border">
-                <div className="text-xs font-medium">Legend</div>
+                <div className="text-xs font-medium">Leyenda</div>
                 <div className="flex items-center gap-2 text-xs">
                   <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                  <span>Main Plant</span>
+                  <span>Almacén Central</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <div className="h-3 w-3 rounded-full bg-green-500"></div>
-                  <span>Tanks</span>
+                  <span>Almacenes Intermedios</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <div className="h-3 w-3 rounded bg-amber-500"></div>
-                  <span>Customers</span>
+                  <span>Cliente</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <div className="h-3 w-3 rounded-full bg-red-500"></div>
-                  <span>Trucks</span>
+                  <span>Camión</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-2">Mapa: 70x50 unidades</div>
+              </div>
+
+              {/* Posiciones de almacenes */}
+              <div className="absolute top-4 right-4 flex flex-col gap-1 bg-background/80 p-2 rounded-md border text-xs">
+                <div className="font-medium">Posiciones:</div>
+                <div>
+                  Central: ({MAIN_WAREHOUSE.x}, {MAIN_WAREHOUSE.y})
+                </div>
+                <div>
+                  Norte: ({NORTH_WAREHOUSE.x}, {NORTH_WAREHOUSE.y})
+                </div>
+                <div>
+                  Este: ({EAST_WAREHOUSE.x}, {EAST_WAREHOUSE.y})
                 </div>
               </div>
             </div>
           </TabsContent>
+
           <TabsContent value="list" className="m-0 p-4 h-full overflow-auto">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  Route 1: TRK-001
-                </h3>
-                <div className="rounded-md border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Home className="h-4 w-4 text-blue-500" />
-                    <span>Main Plant</span>
-                    <span className="text-muted-foreground ml-auto">Start: 08:00</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Package className="h-4 w-4 text-amber-500" />
-                    <span>Acme Corp (Sector A-3)</span>
-                    <span className="text-muted-foreground ml-auto">ETA: 08:45</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm mt-2 pt-2 border-t">
-                    <div className="flex items-center gap-2">
-                      <Fuel className="h-4 w-4 text-muted-foreground" />
-                      <span>Fuel: 12L</span>
+              {simulationData && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Ruta Optimizada
+                  </h3>
+                  <div className="rounded-md border p-3 space-y-2">
+                    <div className="text-xs text-muted-foreground">
+                      Total de pasos: {simulationData.route.length}
                     </div>
-                    <div>Distance: 3.2km</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  Route 2: TRK-002
-                </h3>
-                <div className="rounded-md border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Home className="h-4 w-4 text-blue-500" />
-                    <span>Main Plant</span>
-                    <span className="text-muted-foreground ml-auto">Start: 08:30</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Fuel className="h-4 w-4 text-green-500" />
-                    <span>Tank 1 (Sector B-3)</span>
-                    <span className="text-muted-foreground ml-auto">ETA: 09:15</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Package className="h-4 w-4 text-amber-500" />
-                    <span>Global Industries (Sector C-4)</span>
-                    <span className="text-muted-foreground ml-auto">ETA: 10:00</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm mt-2 pt-2 border-t">
-                    <div className="flex items-center gap-2">
-                      <Fuel className="h-4 w-4 text-muted-foreground" />
-                      <span>Fuel: 22L</span>
+                    <div className="text-xs text-muted-foreground">
+                      Tiempo estimado: {formatTime(simulationData.route.length * 72)}
                     </div>
-                    <div>Distance: 8.1km</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  Route 3: TRK-003
-                </h3>
-                <div className="rounded-md border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Fuel className="h-4 w-4 text-green-500" />
-                    <span>Tank 2 (Sector B-8)</span>
-                    <span className="text-muted-foreground ml-auto">Start: 09:00</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Package className="h-4 w-4 text-amber-500" />
-                    <span>City Hospital (Sector D-10)</span>
-                    <span className="text-muted-foreground ml-auto">ETA: 09:45</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm mt-2 pt-2 border-t">
-                    <div className="flex items-center gap-2">
-                      <Fuel className="h-4 w-4 text-muted-foreground" />
-                      <span>Fuel: 15L</span>
+                    <div className="max-h-60 overflow-y-auto space-y-1">
+                      {simulationData.route.map((point, index) => (
+                        <div
+                          key={index}
+                          className={`text-xs p-1 rounded ${
+                            index === currentRouteIndex
+                              ? "bg-blue-100 font-medium"
+                              : index < currentRouteIndex
+                              ? "bg-green-50"
+                              : "bg-gray-50"
+                          }`}
+                        >
+                          {index + 1}. ({point.x}, {point.y}) - {formatTime(index * 72)}
+                        </div>
+                      ))}
                     </div>
-                    <div>Distance: 4.9km</div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="comparison" className="m-0 p-4 h-full overflow-auto">
-            <div className="space-y-6">
-              <div className="grid grid-cols-3 gap-4">
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Current Plan</div>
-                  <div className="mt-2 text-2xl font-bold">187L</div>
-                  <div className="text-xs text-muted-foreground">Total Fuel</div>
-                </Card>
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Optimized Plan</div>
-                  <div className="mt-2 text-2xl font-bold text-green-600">162L</div>
-                  <div className="text-xs text-muted-foreground">Total Fuel</div>
-                </Card>
-                <Card className="p-4">
-                  <div className="text-sm font-medium">Savings</div>
-                  <div className="mt-2 text-2xl font-bold text-green-600">13.4%</div>
-                  <div className="text-xs text-muted-foreground">Fuel Reduction</div>
-                </Card>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Comparison Details</h3>
-                <div className="rounded-md border overflow-hidden">
-                  <table className="min-w-full divide-y divide-border">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Metric</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Current</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Optimized</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Difference</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border bg-background">
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Total Distance</td>
-                        <td className="px-4 py-2 text-sm">78.5 km</td>
-                        <td className="px-4 py-2 text-sm">68.2 km</td>
-                        <td className="px-4 py-2 text-sm text-green-600">-13.1%</td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Fuel Consumption</td>
-                        <td className="px-4 py-2 text-sm">187 L</td>
-                        <td className="px-4 py-2 text-sm">162 L</td>
-                        <td className="px-4 py-2 text-sm text-green-600">-13.4%</td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Delivery Time</td>
-                        <td className="px-4 py-2 text-sm">5h 30m</td>
-                        <td className="px-4 py-2 text-sm">4h 45m</td>
-                        <td className="px-4 py-2 text-sm text-green-600">-13.6%</td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Trucks Used</td>
-                        <td className="px-4 py-2 text-sm">5</td>
-                        <td className="px-4 py-2 text-sm">4</td>
-                        <td className="px-4 py-2 text-sm text-green-600">-20.0%</td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-2 text-sm">Average Load</td>
-                        <td className="px-4 py-2 text-sm">68%</td>
-                        <td className="px-4 py-2 text-sm">85%</td>
-                        <td className="px-4 py-2 text-sm text-green-600">+25.0%</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <Button className="w-full">Apply Optimized Plan</Button>
+              )}
             </div>
           </TabsContent>
         </CardContent>
       </Tabs>
     </Card>
-  )
+  );
 }
-

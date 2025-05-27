@@ -56,7 +56,7 @@ const data: Order[] = [
     location: "Sector B-3 (5.7km)",
     volume: "8m³",
     deadline: "Today, 16:00",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "3 hours ago",
   },
   {
@@ -65,7 +65,7 @@ const data: Order[] = [
     location: "Sector C-7 (8.1km)",
     volume: "22m³",
     deadline: "Today, 17:45",
-    status: "Assigned",
+    status: "In Progress",
     createdAt: "5 hours ago",
   },
   {
@@ -74,7 +74,7 @@ const data: Order[] = [
     location: "Sector A-1 (2.3km)",
     volume: "12m³",
     deadline: "Tomorrow, 09:00",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "Yesterday",
   },
   {
@@ -83,7 +83,7 @@ const data: Order[] = [
     location: "Sector D-4 (6.5km)",
     volume: "7m³",
     deadline: "Tomorrow, 11:30",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "Yesterday",
   },
   {
@@ -92,7 +92,7 @@ const data: Order[] = [
     location: "Sector E-2 (12.8km)",
     volume: "18m³",
     deadline: "Tomorrow, 14:00",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "Yesterday",
   },
   {
@@ -101,7 +101,7 @@ const data: Order[] = [
     location: "Sector B-6 (4.9km)",
     volume: "10m³",
     deadline: "Tomorrow, 16:30",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "Yesterday",
   },
   {
@@ -110,7 +110,7 @@ const data: Order[] = [
     location: "Sector C-3 (7.2km)",
     volume: "25m³",
     deadline: "In 2 days, 10:00",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "2 days ago",
   },
   {
@@ -119,7 +119,7 @@ const data: Order[] = [
     location: "Sector D-1 (9.5km)",
     volume: "20m³",
     deadline: "In 2 days, 13:45",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "2 days ago",
   },
   {
@@ -128,7 +128,7 @@ const data: Order[] = [
     location: "Sector E-5 (15.3km)",
     volume: "12m³",
     deadline: "In 3 days, 09:30",
-    status: "Pending",
+    status: "In Progress",
     createdAt: "3 days ago",
   },
 ]

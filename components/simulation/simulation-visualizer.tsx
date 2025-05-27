@@ -301,7 +301,7 @@ export default function SimulationVisualizer() {
   const blockages: Blockage[] = [
     {
       from: [20, 20],
-      to: [25, 25],
+      to: [20, 25], // Changed to vertical (same x coordinate)
       reason: "Bloqueo",
       estimatedDuration: 120,
       startTime: "08:00",
@@ -309,30 +309,64 @@ export default function SimulationVisualizer() {
     },
     {
       from: [30, 30],
-      to: [35, 35],
+      to: [35, 30], // Changed to horizontal (same y coordinate)
       reason: "Bloqueo",
       estimatedDuration: 45,
       startTime: "09:30",
-      severity: "high"
+      severity: "medium"
     },
     {
       from: [40, 40],
-      to: [45, 45],
+      to: [40, 45], // Changed to vertical (same x coordinate)
       reason: "Bloqueo",
       estimatedDuration: 180,
       startTime: "10:00",
+      severity: "low"
+    },
+    // Nuevos bloqueos de ejemplo
+    {
+      from: [15, 35],
+      to: [25, 35], // Horizontal (same y coordinate)
+      reason: "Bloqueo",
+      estimatedDuration: 90,
+      startTime: "11:30",
+      severity: "medium"
+    },
+    {
+      from: [50, 50],
+      to: [50, 55], // Vertical (same x coordinate)
+      reason: "Bloqueo",
+      estimatedDuration: 240,
+      startTime: "07:45",
       severity: "high"
     }
   ];
 
+  // Helper function to check if a blockage is orthogonal (horizontal or vertical)
+  const isOrthogonalBlockage = (from: [number, number], to: [number, number]): boolean => {
+    return from[0] === to[0] || from[1] === to[1];
+  };
+
+  // Function to add a new blockage with validation
+  const addBlockage = (newBlockage: Blockage) => {
+    if (!isOrthogonalBlockage(newBlockage.from, newBlockage.to)) {
+      console.error("Invalid blockage: must be horizontal or vertical");
+      return false;
+    }
+    // Add the blockage to the state
+    // blockages.push(newBlockage); // This would require state management
+    return true;
+  };
+  
   // Zoom fijo y posición
   const [scale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Para mostrar detalles del vehículo seleccionado
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [hoveredVehicle, setHoveredVehicle] = useState<Vehicle | null>(null);
+  const [hoveredPoint, setHoveredPoint] = useState<{ x: number, y: number } | null>(null);
 
   // Estado de simulación para animar vehículos
   const [isPlaying, setIsPlaying] = useState(false);
@@ -399,6 +433,248 @@ export default function SimulationVisualizer() {
     }
   };
 
+  // Detectar si un punto está dentro de un vehículo
+  const isPointInVehicle = (x: number, y: number, vehicle: Vehicle): boolean => {
+    const currentPos = calculatePosition(vehicle.position, vehicle.destination, vehicle.progress);
+    const vehicleX = currentPos[0] * GRID_SIZE;
+    const vehicleY = currentPos[1] * GRID_SIZE;
+    
+    return (
+      x >= vehicleX - 6 &&
+      x <= vehicleX + 6 &&
+      y >= vehicleY - 3 &&
+      y <= vehicleY + 6
+    );
+  };
+
+  // Manejar el movimiento del mouse sobre el canvas
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) - position.x;
+    const y = (e.clientY - rect.top) - position.y;
+    
+    setHoveredPoint({ x, y });
+    
+    // Verificar si el mouse está sobre algún vehículo
+    const hovered = currentVehicles.find(vehicle => isPointInVehicle(x, y, vehicle));
+    setHoveredVehicle(hovered || null);
+  };
+
+  // Manejar el click en el canvas
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) - position.x;
+    const y = (e.clientY - rect.top) - position.y;
+    
+    // Verificar si se hizo clic en algún vehículo
+    const clicked = currentVehicles.find(vehicle => isPointInVehicle(x, y, vehicle));
+    if (clicked) {
+      handleVehicleClick(clicked);
+    }
+  };
+
+  // Dibujar la simulación en el canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Limpiar el canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Aplicar transformación para posición y escala
+    ctx.save();
+    ctx.translate(position.x, position.y);
+    ctx.scale(scale, scale);
+    
+    // Dibujar la cuadrícula
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1/scale;
+    ctx.beginPath();
+    for (let i = 0; i <= GRID_WIDTH; i++) {
+      ctx.moveTo(i * GRID_SIZE, 0);
+      ctx.lineTo(i * GRID_SIZE, GRID_HEIGHT * GRID_SIZE);
+    }
+    for (let j = 0; j <= GRID_HEIGHT; j++) {
+      ctx.moveTo(0, j * GRID_SIZE);
+      ctx.lineTo(GRID_WIDTH * GRID_SIZE, j * GRID_SIZE);
+    }
+    ctx.stroke();
+    
+    // Dibujar rutas
+    for (const route of gridRoutes) {
+      ctx.beginPath();
+      ctx.moveTo(route.from[0] * GRID_SIZE + GRID_SIZE / 2, route.from[1] * GRID_SIZE + GRID_SIZE / 2);
+      ctx.lineTo(route.to[0] * GRID_SIZE + GRID_SIZE / 2, route.to[1] * GRID_SIZE + GRID_SIZE / 2);
+      
+      // Asignar color según el tipo de ruta
+      ctx.strokeStyle = route.type === 'supply' ? '#1E40AF' :
+                       route.type === 'delivery' ? '#047857' :
+                       route.type === 'return' ? '#7E22CE' : '#F59E0B';
+      ctx.lineWidth = 2/scale;
+      
+      // Línea discontinua para rutas de retorno y recarga
+      if (route.type === 'return' || route.type === 'refuel') {
+        ctx.setLineDash([5/scale, 5/scale]);
+      } else {
+        ctx.setLineDash([]);
+      }
+      
+      ctx.stroke();
+    }
+    
+    // Dibujar bloqueos
+    for (const blockage of blockages) {
+      ctx.beginPath();
+      ctx.moveTo(blockage.from[0] * GRID_SIZE + GRID_SIZE / 2, blockage.from[1] * GRID_SIZE + GRID_SIZE / 2);
+      ctx.lineTo(blockage.to[0] * GRID_SIZE + GRID_SIZE / 2, blockage.to[1] * GRID_SIZE + GRID_SIZE / 2);
+      
+      // Color según la severidad
+      ctx.strokeStyle = blockage.severity === 'high' ? '#EF4444' :
+                       blockage.severity === 'medium' ? '#F59E0B' : '#FCD34D';
+      ctx.lineWidth = 4/scale;
+      ctx.setLineDash([8/scale, 4/scale]);
+      ctx.stroke();
+      
+      // Texto del bloqueo
+      ctx.setLineDash([]);
+      ctx.font = `${8/scale}px Arial`;
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        blockage.reason,
+        (blockage.from[0] + blockage.to[0]) * GRID_SIZE / 2 + GRID_SIZE / 2,
+        (blockage.from[1] + blockage.to[1]) * GRID_SIZE / 2 + GRID_SIZE / 2 - 10/scale
+      );
+    }
+    
+    // Dibujar nodos (plantas, tanques, clientes, estaciones)
+    for (const node of nodes) {
+      ctx.beginPath();
+      ctx.arc(
+        node.x * GRID_SIZE + GRID_SIZE / 2,
+        node.y * GRID_SIZE + GRID_SIZE / 2,
+        (node.type === 'refuelStation' ? 4 : 6) / Math.sqrt(scale),
+        0,
+        2 * Math.PI
+      );
+      ctx.fillStyle = node.color;
+      ctx.fill();
+      
+      // Borde para tanques y plantas
+      if (node.type === 'tank' || node.type === 'plant') {
+        ctx.strokeStyle = node.type === 'tank' ? '#047857' : '#1E3A8A';
+        ctx.lineWidth = 1/scale;
+        ctx.stroke();
+      }
+      
+      // Etiqueta del nodo
+      if (node.label) {
+        ctx.font = `${10/scale}px Arial`;
+        ctx.fillStyle = '#4B5563';
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          node.label,
+          node.x * GRID_SIZE + GRID_SIZE / 2 + 8/scale,
+          node.y * GRID_SIZE + GRID_SIZE / 2 + 4/scale
+        );
+      }
+    }
+    
+    // Dibujar vehículos
+    for (const vehicle of currentVehicles) {
+      const currentPos = calculatePosition(vehicle.position, vehicle.destination, vehicle.progress);
+      const x = currentPos[0] * GRID_SIZE;
+      const y = currentPos[1] * GRID_SIZE;
+      
+      // Dirección del vehículo
+      const direction = vehicle.destination[0] > vehicle.position[0]
+        ? '→'
+        : vehicle.destination[0] < vehicle.position[0]
+          ? '←'
+          : vehicle.destination[1] > vehicle.position[1]
+            ? '↓' : '↑';
+      
+      // Dibujar cuerpo del vehículo
+      ctx.fillStyle = getVehicleColor(vehicle);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 0.5/scale;
+      ctx.beginPath();
+      ctx.rect(x - 6/scale, y - 3/scale, 12/scale, 6/scale);
+      ctx.fill();
+      ctx.stroke();
+      
+      // Dibujar dirección
+      ctx.font = `${8/scale}px Arial`;
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      ctx.fillText(direction, x, y - 8/scale);
+      
+      // Dibujar ruedas
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(x - 3/scale, y + 4/scale, 1.5/scale, 0, 2 * Math.PI);
+      ctx.arc(x + 3/scale, y + 4/scale, 1.5/scale, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Dibujar indicador de combustible
+      ctx.fillStyle = vehicle.currentFuel > 30 ? '#10B981' : '#EF4444';
+      ctx.beginPath();
+      ctx.rect(x - 5/scale, y - 6/scale, (10 * vehicle.currentFuel / 100)/scale, 2/scale);
+      ctx.fill();
+      
+      // Dibujar capacidad
+      ctx.font = `${6/scale}px Arial`;
+      ctx.fillStyle = '#FFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${vehicle.capacity}m³`, x, y);
+      
+      // Resaltar vehículo seleccionado o con hover
+      if (vehicle === selectedVehicle || vehicle === hoveredVehicle) {
+        ctx.strokeStyle = '#F59E0B';
+        ctx.lineWidth = 1.5/scale;
+        ctx.beginPath();
+        ctx.rect(x - 7/scale, y - 7/scale, 14/scale, 14/scale);
+        ctx.stroke();
+      }
+    }
+    
+    // Dibujar tooltip para vehículo con hover
+    if (hoveredVehicle && hoveredPoint) {
+      const currentPos = calculatePosition(hoveredVehicle.position, hoveredVehicle.destination, hoveredVehicle.progress);
+      const x = currentPos[0] * GRID_SIZE + 10;
+      const y = currentPos[1] * GRID_SIZE - 25;
+      
+      // Fondo del tooltip
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(x, y, 150, 50);
+      ctx.fill();
+      ctx.stroke();
+      
+      // Texto del tooltip
+      ctx.font = '12px Arial';
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`ID: ${hoveredVehicle.id}`, x + 8, y + 8);
+      ctx.fillText(`Combustible: ${hoveredVehicle.currentFuel}%`, x + 8, y + 26);
+    }
+    
+    ctx.restore();
+  }, [currentVehicles, gridRoutes, nodes, blockages, position, scale, hoveredVehicle, selectedVehicle, hoveredPoint]);
+
   useEffect(() => {
     if (isPlaying) {
       lastTimeRef.current = null;
@@ -414,178 +690,17 @@ export default function SimulationVisualizer() {
   return (
     <div className="relative">
       <div className="border rounded-md bg-white overflow-hidden w-full h-[730px]">
-        <svg
-          ref={svgRef}
+        <canvas
+          ref={canvasRef}
           width={GRID_WIDTH * GRID_SIZE}
           height={GRID_HEIGHT * GRID_SIZE}
           className="bg-white"
-        >
-          <g transform={`translate(${position.x}, ${position.y}) scale(${scale})`}>
-            {/* Dibujando la cuadrícula */}
-            {Array.from({ length: GRID_WIDTH + 1 }).map((_, i) => (
-              <line
-                key={`v-${i}`}
-                x1={i * GRID_SIZE}
-                y1={0}
-                x2={i * GRID_SIZE}
-                y2={GRID_HEIGHT * GRID_SIZE}
-                stroke="#e2e8f0"
-                strokeWidth={1/scale}
-              />
-            ))}
-            {Array.from({ length: GRID_HEIGHT + 1 }).map((_, j) => (
-              <line
-                key={`h-${j}`}
-                x1={0}
-                y1={j * GRID_SIZE}
-                x2={GRID_WIDTH * GRID_SIZE}
-                y2={j * GRID_SIZE}
-                stroke="#e2e8f0"
-                strokeWidth={1/scale}
-              />
-            ))}
-            {/* Rutas de la cuadrícula */}
-            {gridRoutes.map((r, i) => (
-              <line
-                key={`grid-route-${i}`}
-                x1={r.from[0] * GRID_SIZE + GRID_SIZE / 2}
-                y1={r.from[1] * GRID_SIZE + GRID_SIZE / 2}
-                x2={r.to[0] * GRID_SIZE + GRID_SIZE / 2}
-                y2={r.to[1] * GRID_SIZE + GRID_SIZE / 2}
-                stroke={r.type === 'supply' ? '#1E40AF' :
-                        r.type === 'delivery' ? '#047857' :
-                        r.type === 'return' ? '#7E22CE' : '#F59E0B'}
-                strokeWidth={2/scale}
-                strokeDasharray={(r.type === 'return' || r.type === 'refuel') ? `${5/scale},${5/scale}` : "none"}
-              />
-            ))}
-            {/* Dibujando bloqueos */}
-            {blockages.map((bloqueo, i) => (
-              <g key={`blockage-${i}`}>
-                <line
-                  x1={bloqueo.from[0] * GRID_SIZE + GRID_SIZE / 2}
-                  y1={bloqueo.from[1] * GRID_SIZE + GRID_SIZE / 2}
-                  x2={bloqueo.to[0] * GRID_SIZE + GRID_SIZE / 2}
-                  y2={bloqueo.to[1] * GRID_SIZE + GRID_SIZE / 2}
-                  stroke={
-                    bloqueo.severity === 'high'
-                    ? '#EF4444'
-                    : bloqueo.severity === 'medium'
-                      ? '#F59E0B'
-                      : '#FCD34D'
-                  }
-                  strokeWidth={4/scale}
-                  strokeDasharray={`${8/scale},${4/scale}`}
-                />
-                <text
-                  x={(bloqueo.from[0] + bloqueo.to[0]) * GRID_SIZE / 2 + GRID_SIZE / 2}
-                  y={(bloqueo.from[1] + bloqueo.to[1]) * GRID_SIZE / 2 + GRID_SIZE / 2 - 10/scale}
-                  fontSize={`${8/scale}px`}
-                  fill="#000"
-                  textAnchor="middle"
-                >
-                  {bloqueo.reason}
-                </text>
-              </g>
-            ))}
-            {/* Dibujando nodos (plantas, tanques, clientes, estaciones) */}
-            {nodes.map((node, i) => (
-              <g key={`node-${i}`}>
-                <circle
-                  cx={node.x * GRID_SIZE + GRID_SIZE / 2}
-                  cy={node.y * GRID_SIZE + GRID_SIZE / 2}
-                  r={(node.type === 'refuelStation' ? 4 : 6) / Math.sqrt(scale)}
-                  fill={node.color}
-                  stroke={node.type === 'tank' ? '#047857' : node.type === 'plant' ? '#1E3A8A' : 'none'}
-                  strokeWidth={1/scale}
-                />
-                {node.label && (
-                  <text
-                    x={node.x * GRID_SIZE + GRID_SIZE / 2 + 8/scale}
-                    y={node.y * GRID_SIZE + GRID_SIZE / 2 + 4/scale}
-                    fontSize={`${10/scale}px`}
-                    fill="#4B5563"
-                  >
-                    {node.label}
-                  </text>
-                )}
-              </g>
-            ))}
-            {/* Dibujando vehículos y asignándoles funcionalidad de click y hover */}
-            {currentVehicles.map((vehicle, i) => {
-              const currentPos = calculatePosition(vehicle.position, vehicle.destination, vehicle.progress);
-              const direction = vehicle.destination[0] > vehicle.position[0]
-                ? '→'
-                : vehicle.destination[0] < vehicle.position[0]
-                  ? '←'
-                  : vehicle.destination[1] > vehicle.position[1]
-                    ? '↓' : '↑';
-              return (
-                <g
-                  key={`vehicle-${i}`}
-                  transform={`translate(${currentPos[0] * GRID_SIZE}, ${currentPos[1] * GRID_SIZE})`}
-                  onClick={() => handleVehicleClick(vehicle)}
-                  onMouseEnter={() => setHoveredVehicle(vehicle)}
-                  onMouseLeave={() => setHoveredVehicle(null)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <rect
-                    x={-6/scale}
-                    y={-3/scale}
-                    width={12/scale}
-                    height={6/scale}
-                    fill={getVehicleColor(vehicle)}
-                    stroke="#000"
-                    strokeWidth={0.5/scale}
-                  />
-                  <text
-                    x={0}
-                    y={-8/scale}
-                    fontSize={`${8/scale}px`}
-                    fill="#000"
-                    textAnchor="middle"
-                  >
-                    {direction}
-                  </text>
-                  <circle cx={-3/scale} cy={4/scale} r={1.5/scale} fill="#000" />
-                  <circle cx={3/scale} cy={4/scale} r={1.5/scale} fill="#000" />
-                  <rect
-                    x={-5/scale}
-                    y={-6/scale}
-                    width={(10 * (vehicle.currentFuel / 100))/scale}
-                    height={2/scale}
-                    fill={vehicle.currentFuel > 30 ? '#10B981' : '#EF4444'}
-                  />
-                  <text
-                    x={0}
-                    y={0}
-                    fontSize={`${6/scale}px`}
-                    fill="#FFF"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                  >
-                    {vehicle.capacity}m³
-                  </text>
-                </g>
-              );
-            })}
-            {/* Tooltip para mostrar información del vehículo al hacer hover */}
-            {hoveredVehicle && (
-              <foreignObject
-                x={(hoveredVehicle.position[0] * GRID_SIZE) + 10}
-                y={(hoveredVehicle.position[1] * GRID_SIZE) - 20}
-                width={150}
-                height={50}
-              >
-                <div className="bg-white p-2 rounded shadow-md text-xs">
-                  <p><strong>ID:</strong> {hoveredVehicle.id}</p>
-                  <p><strong>Combustible:</strong> {hoveredVehicle.currentFuel}%</p>
-                </div>
-              </foreignObject>
-            )}
-          </g>
-        </svg>
+          onMouseMove={handleMouseMove}
+          onClick={handleCanvasClick}
+          style={{ cursor: 'pointer' }}
+        />
       </div>
+      
       {/* Panel de detalles del vehículo seleccionado */}
       {selectedVehicle && (
         <div 
@@ -593,7 +708,7 @@ export default function SimulationVisualizer() {
           style={{ width: '300px' }}
         >
           <div className="flex justify-between items-center mb-2">
-            <h2 className="font-bold text-lg">Detalles del Vehículo</h2>
+            <h2 className="font-bold text-lg">Información del Vehículo</h2>
             <button onClick={() => setSelectedVehicle(null)} className="text-gray-500">Cerrar</button>
           </div>
           <p><strong>ID:</strong> {selectedVehicle.id}</p>
@@ -603,7 +718,7 @@ export default function SimulationVisualizer() {
           <p><strong>Estado:</strong> {selectedVehicle.status}</p>
           {selectedVehicle.issues && selectedVehicle.issues.length > 0 && (
             <div className="mt-3">
-              <h3 className="font-bold">Averías</h3>
+              <h3 className="font-bold">Problemas</h3>
               {selectedVehicle.issues.map((issue, idx) => (
                 <div key={idx} className="border p-1 my-1 rounded">
                   <p><strong>Descripción:</strong> {issue.description}</p>

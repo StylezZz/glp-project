@@ -299,24 +299,6 @@ export function SimulationControls({
           </TabsContent>
         </Tabs>
       </CardContent>
-
-      <CardFooter className="flex justify-between gap-2">
-        {isRunning ? (
-          <Button
-            className="w-full"
-            variant="outline"
-            onClick={handlePauseSimulation}
-          >
-            <Pause className="mr-2 h-4 w-4" />
-            Pausar Simulación
-          </Button>
-        ) : (
-          <Button className="w-full" onClick={handleRunSimulation}>
-            <Play className="mr-2 h-4 w-4" />
-            Iniciar Simulación
-          </Button>
-        )}
-      </CardFooter>
     </Card>
   );
 }

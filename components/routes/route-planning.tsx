@@ -7,17 +7,16 @@ import { useState } from "react";
 
 interface SimulationData {
   route: Array<{ x: number; y: number }>;
-  customer: { x: number; y: number };
+  customer: { x: number; y: number; name: string };
   startTime: string;
 }
 
 export function RoutePlanning() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [simulationData, setSimulationData] = useState<SimulationData | null>(null);
-
   // Generar ruta sintética (esto será reemplazado por API)
   const generateSyntheticRoute = (): SimulationData => {
-    const customer = { x: 25, y: 15 }; // Cliente ejemplo
+    const customer = { x: 25, y: 15, name: "Cliente Inicial" }; // Cliente ejemplo
 
     // Ruta completa paso a paso
     const route = [

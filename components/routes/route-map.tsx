@@ -181,6 +181,8 @@ export function RouteMap({
       ctx.clearRect(0, 0, width, height);
 
       ctx.save();
+
+      // Solo aplicar zoom desde el centro, sin centrar el mapa
       const centerX = width / 2;
       const centerY = height / 2;
 
@@ -205,57 +207,49 @@ export function RouteMap({
   }, [zoom, currentRouteIndex, simulationData]);
 
   const drawGrid = (ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) => {
-    const baseCellWidth = canvasWidth / MAP_WIDTH;
-    const baseCellHeight = canvasHeight / MAP_HEIGHT;
-    const baseCellSize = Math.min(baseCellWidth, baseCellHeight);
-
-    const mapRealWidth = MAP_WIDTH * baseCellSize;
-    const mapRealHeight = MAP_HEIGHT * baseCellSize;
-
-    const offsetX = (canvasWidth - mapRealWidth) / 2;
-    const offsetY = (canvasHeight - mapRealHeight) / 2;
-
-    ctx.translate(offsetX, offsetY);
+    // Usar todo el espacio disponible - celdas rectangulares
+    const cellWidth = canvasWidth / MAP_WIDTH;
+    const cellHeight = canvasHeight / MAP_HEIGHT;
 
     ctx.strokeStyle = "#e2e8f0";
     ctx.lineWidth = 0.5 / zoom;
 
     // Líneas verticales
     for (let x = 0; x <= MAP_WIDTH; x++) {
-      const xPos = x * baseCellSize;
+      const xPos = x * cellWidth;
       ctx.beginPath();
       ctx.moveTo(xPos, 0);
-      ctx.lineTo(xPos, MAP_HEIGHT * baseCellSize);
+      ctx.lineTo(xPos, MAP_HEIGHT * cellHeight);
       ctx.stroke();
     }
 
     // Líneas horizontales
     for (let y = 0; y <= MAP_HEIGHT; y++) {
-      const yPos = y * baseCellSize;
+      const yPos = y * cellHeight;
       ctx.beginPath();
       ctx.moveTo(0, yPos);
-      ctx.lineTo(MAP_WIDTH * baseCellSize, yPos);
+      ctx.lineTo(MAP_WIDTH * cellWidth, yPos);
       ctx.stroke();
     }
 
     // Etiquetas de coordenadas
     ctx.fillStyle = "#94a3b8";
-    const fontSize = Math.max(8, baseCellSize * 0.3);
+    const fontSize = Math.max(8, Math.min(cellWidth, cellHeight) * 0.3);
     ctx.font = `${fontSize}px sans-serif`;
 
     // Etiquetas X
     for (let x = 0; x <= MAP_WIDTH; x += 5) {
-      const xPos = x * baseCellSize;
+      const xPos = x * cellWidth;
       ctx.fillText(x.toString(), xPos + 2, 12);
     }
 
     // Etiquetas Y
     for (let y = 0; y <= MAP_HEIGHT; y += 5) {
-      const yPos = y * baseCellSize;
+      const yPos = y * cellHeight;
       ctx.fillText(y.toString(), 2, yPos + 12);
     }
 
-    return { baseCellSize, offsetX, offsetY };
+    return { cellWidth, cellHeight };
   };
 
   const drawMapElements = (
@@ -263,21 +257,13 @@ export function RouteMap({
     canvasWidth: number,
     canvasHeight: number
   ) => {
-    const baseCellWidth = canvasWidth / MAP_WIDTH;
-    const baseCellHeight = canvasHeight / MAP_HEIGHT;
-    const baseCellSize = Math.min(baseCellWidth, baseCellHeight);
-
-    const mapRealWidth = MAP_WIDTH * baseCellSize;
-    const mapRealHeight = MAP_HEIGHT * baseCellSize;
-
-    const offsetX = (canvasWidth - mapRealWidth) / 2;
-    const offsetY = (canvasHeight - mapRealHeight) / 2;
-
-    ctx.translate(offsetX, offsetY);
+    // Usar todo el espacio disponible
+    const cellWidth = canvasWidth / MAP_WIDTH;
+    const cellHeight = canvasHeight / MAP_HEIGHT;
 
     const mapToCanvas = (x: number, y: number) => ({
-      x: x * baseCellSize,
-      y: y * baseCellSize,
+      x: x * cellWidth,
+      y: y * cellHeight,
     });
 
     // Dibujar almacenes
@@ -285,52 +271,56 @@ export function RouteMap({
     const mainPos = mapToCanvas(MAIN_WAREHOUSE.x, MAIN_WAREHOUSE.y);
     ctx.fillStyle = "#3b82f6";
     ctx.beginPath();
-    ctx.arc(mainPos.x, mainPos.y, baseCellSize * 0.8, 0, Math.PI * 2);
+    const mainRadius = Math.min(cellWidth, cellHeight) * 0.4;
+    ctx.arc(mainPos.x, mainPos.y, mainRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1e293b";
-    const fontSize = Math.max(10, baseCellSize * 0.4);
+    const fontSize = Math.max(10, Math.min(cellWidth, cellHeight) * 0.25);
     ctx.font = `${fontSize}px sans-serif`;
-    ctx.fillText("Almacén Central", mainPos.x - baseCellSize * 2, mainPos.y - baseCellSize * 1.5);
+    ctx.fillText("Almacén Central", mainPos.x - cellWidth * 1.5, mainPos.y - cellHeight * 0.8);
 
     // Almacén Norte
     const northPos = mapToCanvas(NORTH_WAREHOUSE.x, NORTH_WAREHOUSE.y);
     ctx.fillStyle = "#10b981";
     ctx.beginPath();
-    ctx.arc(northPos.x, northPos.y, baseCellSize * 0.6, 0, Math.PI * 2);
+    const northRadius = Math.min(cellWidth, cellHeight) * 0.3;
+    ctx.arc(northPos.x, northPos.y, northRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1e293b";
-    ctx.fillText("Almacén Norte", northPos.x - baseCellSize * 2, northPos.y - baseCellSize * 1.2);
+    ctx.fillText("Almacén Norte", northPos.x - cellWidth * 1.5, northPos.y - cellHeight * 0.6);
 
     // Almacén Este
     const eastPos = mapToCanvas(EAST_WAREHOUSE.x, EAST_WAREHOUSE.y);
     ctx.fillStyle = "#10b981";
     ctx.beginPath();
-    ctx.arc(eastPos.x, eastPos.y, baseCellSize * 0.6, 0, Math.PI * 2);
+    const eastRadius = Math.min(cellWidth, cellHeight) * 0.3;
+    ctx.arc(eastPos.x, eastPos.y, eastRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1e293b";
-    ctx.fillText("Almacén Este", eastPos.x - baseCellSize * 2, eastPos.y - baseCellSize * 1.2);
+    ctx.fillText("Almacén Este", eastPos.x - cellWidth * 1.5, eastPos.y - cellHeight * 0.6);
 
     // Dibujar cliente si existe simulationData
     if (simulationData) {
       const customerPos = mapToCanvas(simulationData.customer.x, simulationData.customer.y);
       ctx.fillStyle = "#f59e0b";
       ctx.beginPath();
+      const customerSize = Math.min(cellWidth, cellHeight) * 0.3;
       ctx.rect(
-        customerPos.x - baseCellSize * 0.3,
-        customerPos.y - baseCellSize * 0.3,
-        baseCellSize * 0.6,
-        baseCellSize * 0.6
+        customerPos.x - customerSize / 2,
+        customerPos.y - customerSize / 2,
+        customerSize,
+        customerSize
       );
       ctx.fill();
       ctx.fillStyle = "#1e293b";
-      const customerFontSize = Math.max(8, baseCellSize * 0.3);
+      const customerFontSize = Math.max(8, Math.min(cellWidth, cellHeight) * 0.2);
       ctx.font = `${customerFontSize}px sans-serif`;
-      ctx.fillText("Cliente", customerPos.x - baseCellSize * 1, customerPos.y - baseCellSize * 0.8);
+      ctx.fillText("Cliente", customerPos.x - cellWidth * 0.8, customerPos.y - cellHeight * 0.4);
 
       // Dibujar ruta recorrida
       if (currentRouteIndex > 0) {
         ctx.strokeStyle = "#3b82f6";
-        ctx.lineWidth = 3 / zoom;
+        ctx.lineWidth = Math.max(2, Math.min(cellWidth, cellHeight) * 0.1) / zoom;
         ctx.beginPath();
 
         for (let i = 0; i < currentRouteIndex && i < simulationData.route.length - 1; i++) {
@@ -366,10 +356,11 @@ export function RouteMap({
         ctx.rotate(angle);
 
         // Dibujar camión como triángulo
+        const truckSize = Math.min(cellWidth, cellHeight) * 0.2;
         ctx.beginPath();
-        ctx.moveTo(baseCellSize * 0.4, 0);
-        ctx.lineTo(-baseCellSize * 0.3, -baseCellSize * 0.3);
-        ctx.lineTo(-baseCellSize * 0.3, baseCellSize * 0.3);
+        ctx.moveTo(truckSize, 0);
+        ctx.lineTo(-truckSize * 0.7, -truckSize * 0.7);
+        ctx.lineTo(-truckSize * 0.7, truckSize * 0.7);
         ctx.closePath();
         ctx.fill();
 

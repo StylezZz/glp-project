@@ -1,15 +1,9 @@
 "use client";
 
-import type { Metadata } from "next";
 import { RoutesHeader } from "@/components/routes/routes-header";
 import { RouteMap } from "@/components/routes/route-map";
 import { RouteControls } from "@/components/routes/route-controls";
 import { useState } from "react";
-
-export const metadata: Metadata = {
-  title: "Routes | GLP Distribution Logistics",
-  description: "Plan and optimize delivery routes",
-};
 
 interface SimulationData {
   route: Array<{ x: number; y: number }>;
@@ -17,7 +11,7 @@ interface SimulationData {
   startTime: string;
 }
 
-export default function RoutesPage() {
+export function RoutePlanning() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [simulationData, setSimulationData] = useState<SimulationData | null>(null);
 

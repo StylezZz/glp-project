@@ -21,7 +21,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <SidebarProvider>
+          <SidebarProvider defaultOpen={false}>
             <div className="flex h-screen">
               <AppSidebar />
               <main className="flex-1 overflow-auto">

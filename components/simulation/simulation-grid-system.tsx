@@ -68,6 +68,14 @@ export const SimulationGridSystem = memo(function SimulationGridSystem({
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 overflow-hidden">
       <div className="flex space-x-2 mb-3">
+        <button
+          onClick={() => setPlacingMode('block')}
+          className={`px-3 py-1 text-xs rounded-md ${
+            placingMode === 'block' ? 'bg-slate-800 text-white' : 'bg-slate-100'
+          }`}
+        >
+          Bloquear/Desbloquear
+        </button>
         {selectedTruckId && (
           <button
             onClick={() => setPlacingMode('destination')}

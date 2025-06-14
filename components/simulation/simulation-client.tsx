@@ -100,32 +100,7 @@ export default function SimulationPageClient() {
   }  return (
     <div className="h-screen flex flex-col">
       {/* Header Compacto */}
-      <div className="flex items-center justify-between p-4 border-b bg-white">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              Sistema de Simulación Logística GLP
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Monitor en tiempo real del grid logístico y control de flota
-            </p>
-          </div>
-          
-          <Badge className={getStateColor(simulationState)}>
-            {getStateIcon(simulationState)}
-            <span className="ml-1">{getStateLabel(simulationState)}</span>
-          </Badge>
-        </div>
-        
-        <Button 
-          variant="outline" 
-          onClick={handleResetSimulation}
-          disabled={simulationState === 'running'}
-          size="sm"
-        >
-          Nueva Simulación
-        </Button>
-      </div>      <div className="flex-1 flex">
+       <div className="flex-1 flex">
         {/* Mapa Principal - LogisticsMapGrid ocupa todo el espacio disponible */}
         <div className="flex-1">
           <LogisticsMapGrid />

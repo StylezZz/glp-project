@@ -2147,5 +2147,6 @@ const AdvancedLogisticsSimulator = () => {
     </div>
   );
 };
+// comentario para evitar error de importación y conflictos
 
 export default AdvancedLogisticsSimulator;

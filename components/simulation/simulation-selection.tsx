@@ -1,319 +1,242 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
+"use client";
 
-import * as React from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Calendar, Clock, AlertTriangle, Upload, FileText, Play } from "lucide-react"
-import { toast } from "sonner"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import * as React from "react";
+import {
+  Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Calendar, Clock, AlertTriangle, Upload, FileText, Play,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface SimulationSelectionProps {
-  onStartSimulation: (type: string, data: any) => void
-}
+import { useSimulacionWS, ComandoWS } from "@/hooks/useSimulacionWS";
 
-type FileType = 'pedidos' | 'bloqueos' | 'averias';
+/* ───────────────────────── util para subir archivos ───────────────────────── */
+type FileType = "pedidos" | "bloqueos" | "averias";
 
-interface FileInfo {
-  name: string;
-  uploading: boolean;
-  progress: number;
-}
+const subirArchivo = async (file: File, tipo: FileType) => {
+  const form = new FormData();
+  form.append("file", file);
 
-export function SimulationSelection({ onStartSimulation }: SimulationSelectionProps) {
-  const [selectedType, setSelectedType] = React.useState<string | null>(null)
-  const [files, setFiles] = React.useState<Record<FileType, FileInfo | null>>({
-    pedidos: null,
-    bloqueos: null,
-    averias: null,
-  })
-  const fileInputRefs = {
+  const url =
+    tipo === "pedidos"
+      ? "http://localhost:8080/api/pedidos/upload"
+      : tipo === "bloqueos"
+      ? "http://localhost:8080/api/bloqueos/upload"
+      : ""; // averías aún no
+
+  if (!url) return;
+
+  const res = await fetch(url, { method: "POST", body: form });
+  if (!res.ok) throw new Error(`Error al subir ${tipo}`);
+};
+
+/* ──────────────────────────── tipos locales ───────────────────────────────── */
+interface FileInfo { name: string; uploading: boolean; progress: number; }
+interface Props { onStartSimulation: (type: string, data: ComandoWS) => void; }
+
+/* ═════════════════════════  COMPONENTE  ════════════════════════════ */
+export function SimulationSelection({ onStartSimulation }: Props) {
+  /* conexión WS */
+  const { enviarComando, conectado } = useSimulacionWS();
+
+  /* estado de archivos */
+  const [selected, setSelected] = React.useState<string | null>(null);
+  const [files, setFiles] = React.useState<Record<FileType, FileInfo | null>>(
+    { pedidos: null, bloqueos: null, averias: null },
+  );
+  const refs = {
     pedidos: React.useRef<HTMLInputElement>(null),
     bloqueos: React.useRef<HTMLInputElement>(null),
     averias: React.useRef<HTMLInputElement>(null),
-  }
+  };
 
-  const handleFileSelect = (simulationType: string, fileType: FileType) => {
-    setSelectedType(simulationType)
-    if (fileInputRefs[fileType].current) {
-      fileInputRefs[fileType].current.click()
+  /* ───── helpers de subida ───── */
+  const triggerFile = (mode: string, type: FileType) => {
+    setSelected(mode);
+    refs[type].current?.click();
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>, type: FileType) => {
+    const file = e.target.files?.[0]; if (!file) return;
+
+    setFiles((p) => ({ ...p, [type]: { name: file.name, uploading: true, progress: 0 } }));
+    try {
+      await subirArchivo(file, type);
+      setFiles((p) => ({ ...p, [type]: { name: file.name, uploading: false, progress: 100 } }));
+      toast.success(`Archivo ${type} cargado`);
+    } catch {
+      toast.error(`Error al subir ${type}`);
+      setFiles((p) => ({ ...p, [type]: null }));
     }
-  }
+  };
 
-  // Configure file input to show only .txt files
-  const configureFileInput = (inputRef: React.RefObject<HTMLInputElement>) => {
-    if (inputRef.current) {
-      // Set accept attribute to ensure only .txt files are shown in file picker
-      inputRef.current.setAttribute('accept', '.txt,text/plain');
-      
-      // Reset the value to ensure onChange fires even if selecting the same file
-      inputRef.current.value = '';
-    }
-  }
+  /* ───── iniciar simulación ───── */
+  const startSim = () => {
+    if (!files.pedidos) { toast("Falta archivo de pedidos"); return; }
+    if (!conectado)      { toast.error("Socket no conectado"); return; }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: FileType) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setFiles(prev => ({
-        ...prev,
-        [fileType]: {
-          name: file.name,
-          uploading: true,
-          progress: 0
-        }
-      }))
+    const cmd: ComandoWS = {
+      tipo: "INICIAR_SIMULACION",
+      modo: selected as any,                     // "daily" | "weekly" | "collapse"
+      archivos: {
+        pedidos:  files.pedidos.name,
+        bloqueos: files.bloqueos?.name ?? null,
+      },
+    };
 
-      // Simulate file upload progress
-      let progress = 0
-      const interval = setInterval(() => {
-        progress += 10
-        setFiles(prev => ({
-          ...prev,
-          [fileType]: {
-            ...prev[fileType]!,
-            progress,
-          }
-        }))
+    enviarComando(cmd);
+    onStartSimulation(selected ?? "", cmd);
+    toast.success("Simulación iniciada");
+  };
 
-        if (progress >= 100) {
-          clearInterval(interval)
-          setFiles(prev => ({
-            ...prev,
-            [fileType]: {
-              ...prev[fileType]!,
-              uploading: false,
-            }
-          }))
-          toast(`Archivo ${fileType} cargado correctamente`)
-        }
-      }, 300)
-    }
-  }
+  const uploading = Object.values(files).some((f) => f?.uploading);
 
-  const handleStartSimulation = () => {
-    if (selectedType && files.pedidos) {
-      const simulationData = {
-        pedidos: files.pedidos?.name,
-        bloqueos: files.bloqueos?.name || null,
-        averias: files.averias?.name || null,
-      }
-      onStartSimulation(selectedType, simulationData)
-    } else {
-      toast("Se requiere al menos el archivo de pedidos")
-    }
-  }
-
-  const isAnyFileUploading = Object.values(files).some(file => file?.uploading);
-  const hasRequiredFiles = files.pedidos !== null;
-
+  /* ──────────────────────────── UI ─────────────────────────────── */
   return (
     <div className="container mx-auto">
-      <div className="mb-8">
+      <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Simulación</h1>
-        <p className="text-muted-foreground">Seleccione el tipo de simulación y cargue los datos necesarios</p>
-      </div>
+        <p className="text-muted-foreground">Seleccione tipo y cargue los datos.</p>
+      </header>
 
+      {/* tarjetas de modo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Daily Simulation Card */}
-        <Card
-          className={`cursor-pointer transition-all ${selectedType === "daily" ? "ring-2 ring-primary" : "hover:shadow-md"}`}
-          onClick={() => setSelectedType("daily")}
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Operación Día a Día</CardTitle>
-              <Calendar className="h-5 w-5 text-primary" />
-            </div>
-            <CardDescription>
-              Simulación en tiempo real de las entregas del día corriente. Se inicializa con la fecha y hora actual del
-              sistema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center h-32 bg-muted/30 rounded-md">
-              <div className="text-center">
-                <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Cargar archivos necesarios para la simulación</p>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => setSelectedType("daily")}>
-              Seleccionar
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* Weekly Simulation Card */}
-        <Card
-          className={`cursor-pointer transition-all ${selectedType === "weekly" ? "ring-2 ring-primary" : "hover:shadow-md"}`}
-          onClick={() => setSelectedType("weekly")}
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Simulación Semanal</CardTitle>
-              <Clock className="h-5 w-5 text-primary" />
-            </div>
-            <CardDescription>
-              Simulación del desempeño de una semana a partir de la fecha y hora configuradas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center h-32 bg-muted/30 rounded-md">
-              <div className="text-center">
-                <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Cargar archivos necesarios para la simulación</p>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => setSelectedType("weekly")}>
-              Seleccionar
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* Collapse Simulation Card */}
-        <Card
-          className={`cursor-pointer transition-all ${selectedType === "collapse" ? "ring-2 ring-primary" : "hover:shadow-md"}`}
-          onClick={() => setSelectedType("collapse")}
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Simulación Colapso</CardTitle>
-              <AlertTriangle className="h-5 w-5 text-primary" />
-            </div>
-            <CardDescription>
-              Simulación de escenario a partir de la fecha y hora configuradas, hasta que se produzca un colapso
-              logístico.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center h-32 bg-muted/30 rounded-md">
-              <div className="text-center">
-                <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Cargar archivos necesarios para la simulación</p>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => setSelectedType("collapse")}>
-              Seleccionar
-            </Button>
-          </CardFooter>
-        </Card>
+        <ModeCard
+          title="Operación Día a Día"
+          icon={<Calendar className="h-5 w-5 text-primary" />}
+          desc="Simulación en tiempo real del día corriente."
+          selected={selected === "daily"}
+          onSelect={() => setSelected("daily")}
+        />
+        <ModeCard
+          title="Simulación Semanal"
+          icon={<Clock className="h-5 w-5 text-primary" />}
+          desc="Proyección de una semana."
+          selected={selected === "weekly"}
+          onSelect={() => setSelected("weekly")}
+        />
+        <ModeCard
+          title="Simulación Colapso"
+          icon={<AlertTriangle className="h-5 w-5 text-primary" />}
+          desc="Escenario hasta colapso logístico."
+          selected={selected === "collapse"}
+          onSelect={() => setSelected("collapse")}
+        />
       </div>
 
-      {/* Hidden file inputs */}
-      <input 
-        type="file" 
-        ref={fileInputRefs.pedidos} 
-        className="hidden" 
-        accept=".txt,text/plain" 
-        onChange={(e) => handleFileChange(e, 'pedidos')} 
-        onClick={() => configureFileInput(fileInputRefs.pedidos)}
-      />
-      <input 
-        type="file" 
-        ref={fileInputRefs.bloqueos} 
-        className="hidden" 
-        accept=".txt,text/plain" 
-        onChange={(e) => handleFileChange(e, 'bloqueos')} 
-        onClick={() => configureFileInput(fileInputRefs.bloqueos)}
-      />
-      <input 
-        type="file" 
-        ref={fileInputRefs.averias} 
-        className="hidden" 
-        accept=".txt,text/plain" 
-        onChange={(e) => handleFileChange(e, 'averias')} 
-        onClick={() => configureFileInput(fileInputRefs.averias)}
-      />
+      {/* inputs ocultos */}
+      <input hidden type="file" accept=".txt"
+             ref={refs.pedidos}  onChange={(e) => onFile(e, "pedidos")} />
+      <input hidden type="file" accept=".txt"
+             ref={refs.bloqueos} onChange={(e) => onFile(e, "bloqueos")} />
 
-      {/* File upload section */}
-      {selectedType && (
+      {/* panel de tabs tras escoger modo */}
+      {selected && (
         <Card className="mt-7">
           <CardHeader>
-            <CardTitle>Archivos para {
-              selectedType === "daily" ? "Operación Día a Día" : 
-              selectedType === "weekly" ? "Simulación Semanal" :
-              "Simulación Colapso"
-            }</CardTitle>
-            <CardDescription>
-              Cargue los archivos necesarios para la simulación
-            </CardDescription>
+            <CardTitle>Archivos – {selected === "daily" ? "Día a Día"
+                       : selected === "weekly" ? "Semanal" : "Colapso"}</CardTitle>
+            <CardDescription>Cargue los archivos necesarios.</CardDescription>
           </CardHeader>
+
           <CardContent>
-            <Tabs defaultValue="pedidos" className="w-full">
-              <TabsList className="w-full grid grid-cols-3">
+            <Tabs defaultValue="pedidos">
+              <TabsList className="grid grid-cols-3">
                 <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
                 <TabsTrigger value="bloqueos">Bloqueos</TabsTrigger>
                 <TabsTrigger value="averias">Averías</TabsTrigger>
               </TabsList>
-              
-              <TabsContent value="pedidos" className="mt-4">
-                <FileUploadSection 
-                  fileInfo={files.pedidos}
-                  required={true}
-                  onUpload={() => handleFileSelect(selectedType, 'pedidos')}
-                  description="Archivo de pedidos para la simulación (.txt)"
+
+              <TabsContent value="pedidos">
+                <FileSection
+                  info={files.pedidos}
+                  required
+                  desc="Archivo de pedidos (.txt)"
+                  onUpload={() => triggerFile(selected, "pedidos")}
                 />
               </TabsContent>
-              
-              <TabsContent value="bloqueos" className="mt-4">
-                <FileUploadSection 
-                  fileInfo={files.bloqueos}
+
+              <TabsContent value="bloqueos">
+                <FileSection
+                  info={files.bloqueos}
                   required={false}
-                  onUpload={() => handleFileSelect(selectedType, 'bloqueos')}
-                  description="Archivo de bloqueos para la simulación (.txt)"
+                  desc="Archivo de bloqueos (.txt)"
+                  onUpload={() => triggerFile(selected, "bloqueos")}
                 />
               </TabsContent>
-              
-              <TabsContent value="averias" className="mt-4">
-                <FileUploadSection 
-                  fileInfo={files.averias}
+
+              <TabsContent value="averias">
+                <FileSection
+                  info={files.averias}
                   required={false}
-                  onUpload={() => handleFileSelect(selectedType, 'averias')}
-                  description="Archivo de averías para la simulación (.txt)"
+                  desc="Archivo de averías (.txt) – próximamente"
+                  onUpload={() => toast("Aún no implementado")}
                 />
               </TabsContent>
             </Tabs>
           </CardContent>
+
           <CardFooter>
-            <Button 
-              className="w-full" 
-              disabled={isAnyFileUploading || !hasRequiredFiles} 
-              onClick={handleStartSimulation}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Iniciar Simulación
+            <Button className="w-full" disabled={uploading || !files.pedidos} onClick={startSim}>
+              <Play className="mr-2 h-4 w-4" /> Iniciar Simulación
             </Button>
           </CardFooter>
         </Card>
       )}
     </div>
-  )
+  );
 }
 
-interface FileUploadSectionProps {
-  fileInfo: FileInfo | null;
-  required: boolean;
-  onUpload: () => void;
-  description: string;
+/* —──────────────────────  sub-componentes auxiliares  ────────────────────── */
+function ModeCard({ title, icon, desc, selected, onSelect }: {
+  title: string; icon: React.ReactNode; desc: string;
+  selected: boolean; onSelect: () => void;
+}) {
+  return (
+    <Card
+      onClick={onSelect}
+      className={`cursor-pointer transition-all ${
+        selected ? "ring-2 ring-primary" : "hover:shadow-md"
+      }`}
+    >
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>{title}</CardTitle>{icon}
+        </div>
+        <CardDescription>{desc}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-center h-32 bg-muted/30 rounded-md">
+          <div className="text-center">
+            <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">Cargar archivos</p>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button variant="outline" className="w-full">Seleccionar</Button>
+      </CardFooter>
+    </Card>
+  );
 }
 
-function FileUploadSection({ fileInfo, required, onUpload, description }: FileUploadSectionProps) {
+function FileSection({ info, required, onUpload, desc }: {
+  info: FileInfo | null; required: boolean; onUpload: () => void; desc: string;
+}) {
   return (
     <div className="space-y-4">
-      {!fileInfo ? (
+      {!info ? (
         <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-muted-foreground/25 rounded-md">
           <FileText className="h-10 w-10 mb-2 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground mb-4">{description}</p>
-          <p className="text-xs text-muted-foreground mb-2">Solo se permiten archivos .txt</p>
+          <p className="text-sm text-muted-foreground mb-4">{desc}</p>
+          <p className="text-xs text-muted-foreground mb-2">Solo .txt</p>
           <Button variant="outline" onClick={onUpload}>
-            <Upload className="mr-2 h-4 w-4" />
-            Cargar Archivo {required && "(Obligatorio)"}
+            <Upload className="mr-2 h-4 w-4" /> Cargar {required && "(Oblig.)"}
           </Button>
         </div>
       ) : (
@@ -321,44 +244,45 @@ function FileUploadSection({ fileInfo, required, onUpload, description }: FileUp
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <FileText className="h-5 w-5 mr-2 text-primary" />
-              <span className="font-medium">{fileInfo.name}</span>
+              <span className="font-medium">{info.name}</span>
             </div>
-            <Badge variant={fileInfo.uploading ? "outline" : "default"}>
-              {fileInfo.uploading ? "Procesando..." : "Listo"}
+            <Badge variant={info.uploading ? "outline" : "default"}>
+              {info.uploading ? "Procesando…" : "Listo"}
             </Badge>
           </div>
 
-          {fileInfo.uploading && (
-            <div className="space-y-2">
+          {info.uploading && (
+            <>
               <div className="flex justify-between text-sm">
-                <span>Procesando archivo...</span>
-                <span>{fileInfo.progress}%</span>
+                <span>Procesando archivo…</span><span>{info.progress}%</span>
               </div>
-              <Progress value={fileInfo.progress} />
-            </div>
+              <Progress value={info.progress} />
+            </>
           )}
 
-          {!fileInfo.uploading && (
+          {!info.uploading && (
             <Button variant="outline" size="sm" onClick={onUpload}>
-              <Upload className="mr-2 h-4 w-4" />
-              Cambiar archivo
+              <Upload className="mr-2 h-4 w-4" /> Cambiar
             </Button>
           )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
-// Add Badge component since it's used in the file
-function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "outline" }) {
+function Badge({ children, variant = "default" }: {
+  children: React.ReactNode; variant?: "default" | "outline";
+}) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        variant === "default" ? "bg-primary text-primary-foreground" : "border border-primary text-primary"
+        variant === "default"
+          ? "bg-primary text-primary-foreground"
+          : "border border-primary text-primary"
       }`}
     >
       {children}
     </span>
-  )
+  );
 }

@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    /* ─────────── ajustes que ya tenías ─────────── */
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
@@ -13,15 +14,28 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+
+    /* Plugin de Next.js para mejores DX y tipados */
+    "plugins": [{ "name": "next" }],
+
+    /* ─────────── alias de importaciones ─────────── */
+    "baseUrl": ".",                 // raíz del repo (¡fundamental!)
+
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["app/*"],             // todo lo que está dentro de /app (páginas, layouts, etc.)
+      "@/hooks/*": ["hooks/*"],     // carpeta raíz /hooks
+      "@/components/*": ["components/*"] // carpeta raíz /components (shadcn/ui u otros)
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+
+  /* Archivos que participarán en la compilación */
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+
+  /* Directorios a excluir */
   "exclude": ["node_modules"]
 }

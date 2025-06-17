@@ -98,7 +98,7 @@ export default function SimulationPageClient() {
       </div>
     );
   }  return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* Header Compacto */}
        <div className="flex-1 flex">
         {/* Mapa Principal - LogisticsMapGrid ocupa todo el espacio disponible */}

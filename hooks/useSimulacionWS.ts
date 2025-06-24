@@ -2,17 +2,19 @@ import { useEffect, useRef, useState } from "react";
 
 /* ───────────── 1) Tipo de los comandos que envías al backend ───────────── */
 export type ComandoWS = {
-  tipo: string;                          // INICIAR_SIMULACION, GENERAR_AVERIA, ...
+  tipo: string;
   modo?: "daily" | "weekly" | "collapse";
   archivos?: {
     pedidos?: string;
     bloqueos?: string | null;
     averias?: string | null;
   };
+  parametros?: Record<string, unknown>;   // ← añade esto
   codigoCamion?: string;
   tipoIncidente?: string;
   momentoSimulacion?: string;            // ISO-8601
 };
+
 
 export interface PosicionDTO {
   codigoCamion: string;

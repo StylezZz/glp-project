@@ -11,9 +11,6 @@ import {
   Square,
   Truck,
   AlertTriangle,
-  Fuel,
-  Settings,
-  BarChart3,
   MapPin,
   Clock,
   TrendingUp,
@@ -24,6 +21,19 @@ import {
   Bell,
   Wrench,
 } from "lucide-react";
+
+// Types for raw order data from database
+interface RawOrderData {
+  id: string;
+  idpedido: string;
+  fecha: string;
+  cliente_id: string;
+  cantidad: number;
+  direccion?: string;
+  latitud?: number;
+  longitud?: number;
+  [key: string]: unknown;
+}
 
 // Configuración del mapa mejorada
 const MAP_CONFIG = {
@@ -379,7 +389,14 @@ const generateAdvancedBlockages = (): Blockage[] => {
 };
 
 // Hook principal mejorado
-const useAdvancedSimulation = () => {
+const useAdvancedSimulation = (simulationData?: {
+  type: string;
+  date?: string;
+  orders?: Order[];
+  originalOrders?: RawOrderData[];
+  dataSource?: string;
+  totalOrders?: number;
+} | null) => {
   const [isRunning, setIsRunning] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [warehouses] = useState(WAREHOUSES);
@@ -567,7 +584,6 @@ const useAdvancedSimulation = () => {
           status: "idle",
           currentLoad: 0,
           fuelLevel: config.fuelCapacity,
-          fuelCapacity: config.fuelCapacity,
           maintenanceLevel: 100,
           totalDeliveries: 0,
           assignedOrders: [],
@@ -590,7 +606,22 @@ const useAdvancedSimulation = () => {
 
   // Generar órdenes más realistas - SIMPLIFICADO SIN TIPOS DE CLIENTE
   const generateAdvancedOrders = useCallback(() => {
-    if (Math.random() < 0.6) {
+    // Si tenemos datos de simulación reales, usarlos en lugar de generar aleatorios
+    if (simulationData?.orders && simulationData.orders.length > 0) {
+      // Solo procesar pedidos reales si no los hemos procesado antes
+      if (orders.length === 0 && simulationData.dataSource === 'database') {
+        console.log('Loading real orders from database:', simulationData.orders.length);
+        setOrders(simulationData.orders);
+        return;
+      }
+      // Si ya tenemos pedidos reales cargados, NO generar más automáticamente
+      // La simulación se limita únicamente a los pedidos reales
+      return;
+    }
+
+    // Generación aleatoria original (fallback) - SOLO si no hay datos reales
+    if (!simulationData || simulationData.dataSource !== 'database') {
+      if (Math.random() < 0.6) {
       // Generar origen y destino evitando almacenes
       let originX: number = 0;
       let originY: number = 0;
@@ -666,8 +697,9 @@ const useAdvancedSimulation = () => {
       };
 
       setOrders((prev) => [...prev, newOrder]);
+      }
     }
-  }, []);
+  }, [simulationData, orders.length]);
 
   // Actualización de vehículos mejorada
   const updateAdvancedVehicles = useCallback(() => {
@@ -696,23 +728,23 @@ const useAdvancedSimulation = () => {
           newVehicle.status !== "maintenance"
         ) {
           // Encuentra el almacén más cercano
-          const nearestWarehouse = Object.values(WAREHOUSES).reduce(
-            (nearest, warehouse) => {
-              const distanceToCurrent = Math.sqrt(
-                Math.pow(warehouse.x - newVehicle.position.x, 2) +
-                  Math.pow(warehouse.y - newVehicle.position.y, 2)
-              );
-              const distanceToNearest = nearest
-                ? Math.sqrt(
-                    Math.pow(nearest.x - newVehicle.position.x, 2) +
-                      Math.pow(nearest.y - newVehicle.position.y, 2)
-                  )
-                : Infinity;
-
-              return distanceToCurrent < distanceToNearest ? warehouse : nearest;
-            },
-            null
+          const warehouses = Object.values(WAREHOUSES);
+          let nearestWarehouse = warehouses[0];
+          let minDistance = Math.sqrt(
+            Math.pow(warehouses[0].x - newVehicle.position.x, 2) +
+              Math.pow(warehouses[0].y - newVehicle.position.y, 2)
           );
+
+          for (const warehouse of warehouses) {
+            const distance = Math.sqrt(
+              Math.pow(warehouse.x - newVehicle.position.x, 2) +
+                Math.pow(warehouse.y - newVehicle.position.y, 2)
+            );
+            if (distance < minDistance) {
+              minDistance = distance;
+              nearestWarehouse = warehouse;
+            }
+          }
 
           if (nearestWarehouse) {
             newVehicle.status = "refueling";
@@ -1005,6 +1037,75 @@ const useAdvancedSimulation = () => {
     });
   }, [pathfinder, orders, trails, addAlert]);
 
+  // Función para crear órdenes manualmente
+  const createManualOrder = useCallback(() => {
+    const originX = Math.floor(Math.random() * (MAP_CONFIG.width - 10)) + 5;
+    const originY = Math.floor(Math.random() * (MAP_CONFIG.height - 10)) + 5;
+    let destinationX, destinationY;
+    
+    do {
+      destinationX = Math.floor(Math.random() * (MAP_CONFIG.width - 10)) + 5;
+      destinationY = Math.floor(Math.random() * (MAP_CONFIG.height - 10)) + 5;
+    } while (Math.abs(destinationX - originX) < 8 && Math.abs(destinationY - originY) < 8);
+
+    const quantity = Math.floor(Math.random() * 25) + 5;
+    const priorities = ["low", "medium", "high", "urgent"] as const;
+    const priority = priorities[Math.floor(Math.random() * priorities.length)];
+    const distance = Math.sqrt(Math.pow(destinationX - originX, 2) + Math.pow(destinationY - originY, 2));
+    const revenue = Math.round((distance * 0.5 + quantity * 2) * 10) / 10;
+    
+    const now = Date.now();
+    const windowStart = now + (priority === "urgent" ? 60000 : priority === "high" ? 300000 : 600000);
+    const windowDuration = priority === "urgent" ? 900000 : priority === "high" ? 1800000 : 3600000;
+
+    const newOrder: Order = {
+      id: `ORD-${String(Date.now()).slice(-6)}`,
+      origin: { x: originX, y: originY, name: `Origen ${originX},${originY}` },
+      destination: { x: destinationX, y: destinationY, name: `Destino ${destinationX},${destinationY}` },
+      quantity,
+      priority,
+      status: "pending",
+      createdAt: now,
+      assignedVehicle: null,
+      revenue,
+      timeWindow: { start: windowStart, end: windowStart + windowDuration },
+    };
+
+    setOrders((prev) => [...prev, newOrder]);
+    addAlert("info", `Nueva orden creada: ${newOrder.id}`);
+  }, [addAlert]);
+
+  // Función para crear bloqueos manualmente
+  const createManualBlockage = useCallback(() => {
+    const x = Math.floor(Math.random() * (MAP_CONFIG.width - 10)) + 5;
+    const y = Math.floor(Math.random() * (MAP_CONFIG.height - 10)) + 5;
+    const length = Math.floor(Math.random() * 4) + 3;
+    const isHorizontal = Math.random() > 0.5;
+
+    const newBlockage: Blockage = {
+      id: `manual-${Date.now()}`,
+      start: { x, y },
+      end: {
+        x: isHorizontal ? x + length : x,
+        y: isHorizontal ? y : y + length,
+      },
+      type: isHorizontal ? "horizontal" : "vertical",
+      severity: "high",
+      reason: "Bloqueo manual",
+      duration: 180000, // 3 minutos
+      trafficLevel: 0.8,
+    };
+
+    setBlockages((prev) => [...prev, newBlockage]);
+    addAlert("warning", `Nuevo bloqueo creado en (${x}, ${y})`);
+
+    // Remover el bloqueo después de su duración
+    setTimeout(() => {
+      setBlockages((prev) => prev.filter(b => b.id !== newBlockage.id));
+      addAlert("info", `Bloqueo en (${x}, ${y}) removido`);
+    }, newBlockage.duration);
+  }, [addAlert]);
+
   // Actualizar estadísticas mejoradas
   const updateAdvancedStatistics = useCallback(() => {
     const completedOrders = orders.filter((o) => o.status === "completed");
@@ -1047,6 +1148,14 @@ const useAdvancedSimulation = () => {
     setVehicles(generateAdvancedVehicles());
   }, [generateAdvancedVehicles]);
 
+  // Efecto para cargar datos de simulación al inicio
+  useEffect(() => {
+    if (simulationData?.orders && simulationData.orders.length > 0 && orders.length === 0) {
+      console.log('Initial load of real simulation data:', simulationData.orders.length, 'orders');
+      setOrders(simulationData.orders);
+    }
+  }, [simulationData, orders.length]);
+
   // Función para provocar averías manualmente en camiones específicos
   const createVehicleBreakdown = useCallback((vehicleId: string) => {
     if (!pathfinder) return;
@@ -1074,6 +1183,36 @@ const useAdvancedSimulation = () => {
     });
   }, [pathfinder, addAlert]);
 
+  // Función para verificar si la simulación debe detenerse automáticamente
+  const checkSimulationCompletion = useCallback(() => {
+    // Solo verificar si estamos usando datos reales de la base de datos
+    if (simulationData?.dataSource === 'database' && orders.length > 0) {
+      const now = Date.now();
+      
+      // Marcar pedidos expirados como fallidos
+      setOrders(prevOrders => {
+        return prevOrders.map(order => {
+          if (order.status === 'pending' && now > order.timeWindow.end) {
+            addAlert("warning", `Pedido ${order.id} expirado y marcado como fallido`);
+            return { ...order, status: 'failed' };
+          }
+          return order;
+        });
+      });
+      
+      const completedOrders = orders.filter(order => order.status === 'completed').length;
+      const failedOrders = orders.filter(order => order.status === 'failed' || (order.status === 'pending' && now > order.timeWindow.end)).length;
+      const totalProcessedOrders = completedOrders + failedOrders;
+      
+      // Si todos los pedidos han sido procesados (completados o fallidos)
+      if (totalProcessedOrders === orders.length) {
+        console.log(`Simulación completada: ${completedOrders} pedidos completados, ${failedOrders} pedidos fallidos de ${orders.length} totales`);
+        setIsRunning(false);
+        addAlert("info", `Simulación completada. Procesados ${totalProcessedOrders}/${orders.length} pedidos reales.`);
+      }
+    }
+  }, [simulationData, orders, addAlert]);
+
   // Ciclo principal mejorado
   useEffect(() => {
     if (isRunning) {
@@ -1084,6 +1223,7 @@ const useAdvancedSimulation = () => {
         if (timeRef.current % 30 === 0) generateAdvancedOrders();
         if (timeRef.current % 15 === 0) intelligentVehicleAssignment();
         if (timeRef.current % 20 === 0) updateAdvancedStatistics();
+        if (timeRef.current % 10 === 0) checkSimulationCompletion();
 
         if (timeRef.current % 100 === 0) {
           setAlerts((prev) =>
@@ -1108,6 +1248,7 @@ const useAdvancedSimulation = () => {
     generateAdvancedOrders,
     intelligentVehicleAssignment,
     updateAdvancedStatistics,
+    checkSimulationCompletion,
   ]);
 
   const startSimulation = () => setIsRunning(true);
@@ -1146,11 +1287,25 @@ const useAdvancedSimulation = () => {
     pauseSimulation,
     stopSimulation,
     createVehicleBreakdown,
+    createManualOrder,
+    createManualBlockage,
   };
 };
 
-// Componente principal mejorado
-const AdvancedLogisticsSimulator = () => {
+// Props interface for simulation data
+interface SimulationDataProps {
+  simulationData?: {
+    type: string;
+    date?: string;
+    orders?: Order[];
+    originalOrders?: RawOrderData[];
+    dataSource?: string;
+    totalOrders?: number;
+  } | null;
+}
+
+// Componente principal modificado para aceptar datos de simulación
+const AdvancedLogisticsSimulator = ({ simulationData }: SimulationDataProps) => {
   const {
     isRunning,
     vehicles,
@@ -1164,11 +1319,58 @@ const AdvancedLogisticsSimulator = () => {
     pauseSimulation,
     stopSimulation,
     createVehicleBreakdown,
-  } = useAdvancedSimulation();
+    createManualOrder,
+    createManualBlockage,
+  } = useAdvancedSimulation(simulationData);
 
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [selectedVehicleForBreakdown, setSelectedVehicleForBreakdown] = useState<string>("");
+  const wsRef = useRef<WebSocket | null>(null);
 
+  useEffect(()=>{
+    const ws = new WebSocket("ws://localhost:8080/ws/simulation");
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WebSocket connection established");
+      const momentoSimulacion = new Date("2025-06-20T00:00:00").toISOString();
+      ws.send(JSON.stringify({ tipo: "NEXT_INTERVAL", momentoSimulacion }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log("Message received from WebSocket:", data);
+      if(data.tipo === "NEXT_INTERVAL") {
+        console.log("Next interval received:", data.momentoSimulacion);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
+
+    return () => {
+      ws.close();
+    }
+  }, []);
+
+  const sendMessage = (message: object) => {
+    if(wsRef.current && wsRef.current.readyState === WebSocket.OPEN){
+      wsRef.current.send(JSON.stringify(message));
+    }
+  };
+
+  useEffect(()=>{
+    if(isRunning){
+      sendMessage({ tipo: "START_SIMULATION", momentoSimulacion: Date.now() });
+    }else{
+      sendMessage({ tipo: "STOP_SIMULATION", momentoSimulacion: Date.now() });
+    }
+  }, [isRunning]);
   // Renderizado del grid mejorado
   const renderEnhancedGrid = () => {
     const lines = [];
@@ -1881,11 +2083,58 @@ const AdvancedLogisticsSimulator = () => {
                   })}
                 </div>
               </div>
-            </TabsContent>
-
-            {/* NUEVA PESTAÑA DE CONTROL */}
+            </TabsContent>            {/* NUEVA PESTAÑA DE CONTROL */}
             <TabsContent value="control" className="mt-3">
               <div className="space-y-4">
+                {/* Sección de Creación Manual de Órdenes */}
+                <Card className="p-4 bg-blue-50 border-blue-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">
+                      Generar Orden
+                    </span>
+                  </div>
+                  
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={createManualOrder}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Target className="h-3 w-3 mr-1" />
+                    Crear Orden Aleatoria
+                  </Button>
+                  
+                  <div className="text-xs text-gray-500 mt-2">
+                    Genera una nueva orden con origen y destino aleatorios.
+                  </div>
+                </Card>
+
+                {/* Sección de Creación Manual de Bloqueos */}
+                <Card className="p-4 bg-orange-50 border-orange-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Route className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm font-medium text-orange-800">
+                      Crear Bloqueo
+                    </span>
+                  </div>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={createManualBlockage}
+                    className="w-full border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white"
+                  >
+                    <Shield className="h-3 w-3 mr-1" />
+                    Crear Bloqueo Temporal
+                  </Button>
+                  
+                  <div className="text-xs text-gray-500 mt-2">
+                    Crea un bloqueo temporal de 3 minutos en una posición aleatoria.
+                  </div>
+                </Card>
+
+                {/* Sección de Averías */}
                 <Card className="p-4 bg-red-50 border-red-200">
                   <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -1971,7 +2220,7 @@ const AdvancedLogisticsSimulator = () => {
                   >
                     ×
                   </Button>
-                </div>
+                               </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -2019,6 +2268,7 @@ const AdvancedLogisticsSimulator = () => {
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
+                         
                           className={`h-2 rounded-full ${
                             selectedVehicle.maintenanceLevel > 50
                               ? "bg-green-500"

@@ -14,27 +14,38 @@ import {
 } from 'lucide-react';
 import { SimulationSelection } from './simulation-selection';
 import { toast } from 'sonner';
-import LogisticsMapGrid from './LogisticsMapGrid';
+import LogisticsMapGrid from './LogisticsMapGridWrapper';
 
 type SimulationState = 'selection' | 'running' | 'completed' | 'error';
 
 export default function SimulationPageClient() {
-  const [simulationState, setSimulationState] = useState<SimulationState>('selection');  const handleStartSimulation = async (type: string, data: unknown) => {
+  const [simulationState, setSimulationState] = useState<SimulationState>('selection');
+  const [simulationData, setSimulationData] = useState<{
+    type: string;
+    date?: string;
+    orders?: any[];
+    originalOrders?: any[];
+    dataSource?: string;
+    totalOrders?: number;
+  } | null>(null);
+
+  const handleStartSimulation = async (type: string, data: any) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _ = { type, data }; // Use the parameters to avoid eslint error
+      console.log('Starting simulation with data:', { type, data });
       
+      setSimulationData(data);
       setSimulationState('running');
       
-      toast.success(`Simulación iniciada`);
+      toast.success(`Simulación ${type} iniciada con ${data.totalOrders || 0} pedidos`);
       
     } catch (error) {
       console.error('Error starting simulation:', error);
       setSimulationState('error');
       toast.error('Error al iniciar la simulación');
     }
-  };const handleResetSimulation = () => {
+  };  const handleResetSimulation = () => {
     setSimulationState('selection');
+    setSimulationData(null);
   };
 
   const getStateColor = (state: SimulationState) => {
@@ -100,10 +111,28 @@ export default function SimulationPageClient() {
   }  return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header Compacto */}
-       <div className="flex-1 flex">
+      <div className="bg-white border-b p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">Simulación en Ejecución</h1>
+            {simulationData && (
+              <p className="text-sm text-muted-foreground">
+                {simulationData.type} - {simulationData.date || 'Sin fecha'} 
+                {simulationData.totalOrders && ` - ${simulationData.totalOrders} pedidos`}
+              </p>
+            )}
+          </div>
+          <Button variant="outline" onClick={handleResetSimulation}>
+            <Settings className="mr-2 h-4 w-4" />
+            Nueva Simulación
+          </Button>
+        </div>
+      </div>
+      
+      <div className="flex-1 flex">
         {/* Mapa Principal - LogisticsMapGrid ocupa todo el espacio disponible */}
         <div className="flex-1">
-          <LogisticsMapGrid />
+          <LogisticsMapGrid simulationData={simulationData} />
         </div>
       </div>
     </div>

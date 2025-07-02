@@ -23,6 +23,12 @@ interface FileInfo {
 
 export function SimulationSelection({ onStartSimulation }: SimulationSelectionProps) {
   const [selectedType, setSelectedType] = React.useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = React.useState<string>(
+    new Date().toISOString().split('T')[0] // Fecha actual por defecto
+  )
+  const [availableDates, setAvailableDates] = React.useState<any[]>([])
+  const [isLoadingDates, setIsLoadingDates] = React.useState(false)
+  const [isLoadingSimulation, setIsLoadingSimulation] = React.useState(false)
   const [files, setFiles] = React.useState<Record<FileType, FileInfo | null>>({
     pedidos: null,
     bloqueos: null,
@@ -42,7 +48,7 @@ export function SimulationSelection({ onStartSimulation }: SimulationSelectionPr
   }
 
   // Configure file input to show only .txt files
-  const configureFileInput = (inputRef: React.RefObject<HTMLInputElement>) => {
+  const configureFileInput = (inputRef: React.RefObject<HTMLInputElement | null>) => {
     if (inputRef.current) {
       // Set accept attribute to ensure only .txt files are shown in file picker
       inputRef.current.setAttribute('accept', '.txt,text/plain');
@@ -51,61 +57,121 @@ export function SimulationSelection({ onStartSimulation }: SimulationSelectionPr
       inputRef.current.value = '';
     }
   }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: FileType) => {
-    const file = e.target.files?.[0]
+  // Simulación de carga de archivos sin endpoints
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, fileType: FileType) => {
+    const file = e.target.files?.[0];
     if (file) {
-      setFiles(prev => ({
+      setFiles((prev) => ({
         ...prev,
         [fileType]: {
           name: file.name,
           uploading: true,
-          progress: 0
-        }
-      }))
+          progress: 0,
+        },
+      }));
 
-      // Simulate file upload progress
-      let progress = 0
+      // Simular progreso de carga
+      let progress = 0;
       const interval = setInterval(() => {
-        progress += 10
-        setFiles(prev => ({
+        progress += 20;
+        setFiles((prev) => ({
           ...prev,
           [fileType]: {
             ...prev[fileType]!,
             progress,
-          }
-        }))
+          },
+        }));
 
         if (progress >= 100) {
-          clearInterval(interval)
-          setFiles(prev => ({
+          clearInterval(interval);
+          setFiles((prev) => ({
             ...prev,
             [fileType]: {
               ...prev[fileType]!,
               uploading: false,
-            }
-          }))
-          toast(`Archivo ${fileType} cargado correctamente`)
+            },
+          }));
+          toast(`Archivo ${fileType} cargado correctamente`);
         }
-      }, 300)
+      }, 200);
+
+      // Limpiar el input después de procesar
+      if (fileInputRefs[fileType].current) {
+        fileInputRefs[fileType].current.value = "";
+      }
     }
   }
-
   const handleStartSimulation = () => {
-    if (selectedType && files.pedidos) {
+    if (selectedType) {
       const simulationData = {
-        pedidos: files.pedidos?.name,
+        type: selectedType,
+        pedidos: files.pedidos?.name || null,
         bloqueos: files.bloqueos?.name || null,
         averias: files.averias?.name || null,
       }
       onStartSimulation(selectedType, simulationData)
     } else {
-      toast("Se requiere al menos el archivo de pedidos")
+      toast("Por favor seleccione un tipo de simulación")
     }
   }
 
-  const isAnyFileUploading = Object.values(files).some(file => file?.uploading);
-  const hasRequiredFiles = files.pedidos !== null;
+  // Cargar fechas disponibles cuando se monta el componente
+  React.useEffect(() => {
+    loadAvailableDates()
+  }, [])
+
+  const loadAvailableDates = async () => {
+    setIsLoadingDates(true)
+    try {
+      const response = await fetch('/api/pedidos/dates')
+      const data = await response.json()
+      if (data.success) {
+        setAvailableDates(data.availableDates)
+      }
+    } catch (error) {
+      console.error('Error loading available dates:', error)
+    } finally {
+      setIsLoadingDates(false)
+    }
+  }
+
+  const handleStartDatabaseSimulation = async () => {
+    if (!selectedType) {
+      return
+    }
+
+    if (!selectedDate) {
+      return
+    }
+
+    setIsLoadingSimulation(true)
+    try {
+      // Cargar pedidos de la fecha seleccionada desde la base de datos
+      const response = await fetch(`/api/pedidos?date=${selectedDate}`)
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'Error al cargar pedidos')
+      }
+
+      // Transformar datos para la simulación
+      const simulationData = {
+        type: selectedType,
+        date: selectedDate,
+        orders: data.simulationData || [], // Usar datos transformados
+        originalOrders: data.pedidos || [], // Mantener datos originales
+        dataSource: 'database',
+        totalOrders: data.count || 0
+      }
+
+      console.log('Starting simulation with database data:', simulationData)
+      onStartSimulation(selectedType, simulationData)
+    } catch (error) {
+      console.error('Error loading simulation data:', error)
+    } finally {
+      setIsLoadingSimulation(false)
+    }
+  }
 
   return (
     <div className="container mx-auto">
@@ -231,17 +297,84 @@ export function SimulationSelection({ onStartSimulation }: SimulationSelectionPr
         onClick={() => configureFileInput(fileInputRefs.averias)}
       />
 
+      {/* Database data section */}
+      {selectedType && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Usar Datos Reales de la Base de Datos</CardTitle>
+            <CardDescription>
+              Seleccione una fecha para cargar pedidos reales desde la base de datos. Esta opción utiliza datos históricos reales.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Seleccionar Fecha:</label>
+                {isLoadingDates ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Clock className="mr-2 h-4 w-4 animate-spin" />
+                    Cargando fechas disponibles...
+                  </div>
+                ) : (
+                  <select 
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full p-2 border rounded-md mt-1"
+                  >
+                    <option value="">Seleccione una fecha</option>
+                    {availableDates.map((date: any) => (
+                      <option key={date.date} value={date.date}>
+                        {date.displayName} - {date.monthName} {date.year}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              
+              {selectedDate && (
+                <div className="p-3 bg-blue-50 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    ✓ Fecha seleccionada: {selectedDate}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Los pedidos reales de esta fecha serán cargados automáticamente
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full" 
+              disabled={!selectedDate || isLoadingSimulation} 
+              onClick={handleStartDatabaseSimulation}
+            >
+              {isLoadingSimulation ? (
+                <>
+                  <Clock className="mr-2 h-4 w-4 animate-spin" />
+                  Cargando pedidos del {selectedDate}...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Iniciar Simulación con Datos Reales
+                </>
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
       {/* File upload section */}
       {selectedType && (
-        <Card className="mt-7">
-          <CardHeader>
+        <Card className="mt-7">          <CardHeader>
             <CardTitle>Archivos para {
               selectedType === "daily" ? "Operación Día a Día" : 
               selectedType === "weekly" ? "Simulación Semanal" :
               "Simulación Colapso"
             }</CardTitle>
             <CardDescription>
-              Cargue los archivos necesarios para la simulación
+              Opcionalmente puede cargar archivos para personalizar la simulación. Si no carga archivos, la simulación generará datos automáticamente.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -251,22 +384,20 @@ export function SimulationSelection({ onStartSimulation }: SimulationSelectionPr
                 <TabsTrigger value="bloqueos">Bloqueos</TabsTrigger>
                 <TabsTrigger value="averias">Averías</TabsTrigger>
               </TabsList>
-              
-              <TabsContent value="pedidos" className="mt-4">
+                <TabsContent value="pedidos" className="mt-4">
                 <FileUploadSection 
                   fileInfo={files.pedidos}
-                  required={true}
+                  required={false}
                   onUpload={() => handleFileSelect(selectedType, 'pedidos')}
-                  description="Archivo de pedidos para la simulación (.txt)"
+                  description="Archivo de pedidos para la simulación (.txt) - Opcional"
                 />
               </TabsContent>
               
-              <TabsContent value="bloqueos" className="mt-4">
-                <FileUploadSection 
+              <TabsContent value="bloqueos" className="mt-4">                <FileUploadSection 
                   fileInfo={files.bloqueos}
                   required={false}
                   onUpload={() => handleFileSelect(selectedType, 'bloqueos')}
-                  description="Archivo de bloqueos para la simulación (.txt)"
+                  description="Archivo de bloqueos para la simulación (.txt) - Opcional"
                 />
               </TabsContent>
               
@@ -275,7 +406,7 @@ export function SimulationSelection({ onStartSimulation }: SimulationSelectionPr
                   fileInfo={files.averias}
                   required={false}
                   onUpload={() => handleFileSelect(selectedType, 'averias')}
-                  description="Archivo de averías para la simulación (.txt)"
+                  description="Archivo de averías para la simulación (.txt) - Opcional"
                 />
               </TabsContent>
             </Tabs>
@@ -283,7 +414,7 @@ export function SimulationSelection({ onStartSimulation }: SimulationSelectionPr
           <CardFooter>
             <Button 
               className="w-full" 
-              disabled={isAnyFileUploading || !hasRequiredFiles} 
+              disabled={false} 
               onClick={handleStartSimulation}
             >
               <Play className="mr-2 h-4 w-4" />
@@ -310,10 +441,9 @@ function FileUploadSection({ fileInfo, required, onUpload, description }: FileUp
         <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-muted-foreground/25 rounded-md">
           <FileText className="h-10 w-10 mb-2 text-muted-foreground" />
           <p className="text-sm text-muted-foreground mb-4">{description}</p>
-          <p className="text-xs text-muted-foreground mb-2">Solo se permiten archivos .txt</p>
-          <Button variant="outline" onClick={onUpload}>
+          <p className="text-xs text-muted-foreground mb-2">Solo se permiten archivos .txt</p>          <Button variant="outline" onClick={onUpload}>
             <Upload className="mr-2 h-4 w-4" />
-            Cargar Archivo {required && "(Obligatorio)"}
+            Cargar Archivo{required ? " (Obligatorio)" : " (Opcional)"}
           </Button>
         </div>
       ) : (
